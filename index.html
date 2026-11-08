@@ -150,6 +150,31 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:9;max-width:calc(100% - 32px)}
 .summary{text-align:center;display:grid;gap:12px;justify-items:center;padding:12px 0}
 .big-score{font-family:var(--f-display);font-weight:800;font-size:72px;line-height:1;color:var(--voice)}
+
+/* 等級、建議、週報、錯題本 */
+.grade{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 6px;border-radius:10px;font-family:var(--f-display);font-weight:800;font-size:19px;line-height:1;vertical-align:middle}
+.stat .grade{min-width:24px;height:24px;font-size:14px;border-radius:7px;vertical-align:4px}
+.grade.gS{background:var(--voice);color:#1d1206}.grade.gA{background:var(--good);color:#fff}.grade.gB{background:var(--accent);color:var(--accent-ink)}.grade.gC{background:var(--cell);color:var(--muted)}
+.tips{display:grid;gap:8px}
+.tipitem{display:grid;gap:2px;padding:10px 12px;border-radius:12px;background:var(--voice-soft);font-size:14.5px}
+.tipitem b{font-weight:700}
+.tipitem span{color:var(--ink);opacity:.85}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.metrics div,.rep-stats div{background:var(--bg);border-radius:10px;padding:8px;text-align:center}
+.metrics b,.rep-stats b{display:block;font-family:var(--f-display);font-size:20px;font-variant-numeric:tabular-nums;line-height:1.2}
+.metrics span,.rep-stats span{font-size:11.5px;color:var(--muted)}
+.report{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:22px;text-align:left}
+.rep-row{display:flex;gap:12px;align-items:center}
+.rep-grade .grade{min-width:56px;height:56px;font-size:30px;border-radius:14px}
+.rep-stats{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;min-width:0}
+b.up{color:var(--good)}b.down{color:var(--bad)}
+.wtag{display:inline-block;font-size:12.5px;padding:1px 8px;border-radius:99px;background:var(--bad-soft);color:var(--bad);margin:2px 2px 0 0;font-weight:500;letter-spacing:0;text-transform:none}
+.mistcard{display:flex;gap:12px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--bad);border-radius:var(--r);padding:12px 14px;margin:-12px 0 22px}
+.mistcard>div{min-width:0}
+.mistcard .btn{min-height:44px;padding:0 16px;font-size:15px;flex:none}
+.weak{display:grid;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
+.weak:first-of-type{border-top:0}
+.summary .grade{min-width:48px;height:48px;font-size:26px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -269,7 +294,7 @@ var ONES=["zero","one","two","three","four","five","six","seven","eight","nine",
 var TENS=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
 function nw(n){n=+n;if(n<20)return ONES[n];if(n<100)return TENS[Math.floor(n/10)]+(n%10?" "+ONES[n%10]:"");if(n<1000)return ONES[Math.floor(n/100)]+" hundred"+(n%100?" "+nw(n%100):"");if(n<10000)return nw(Math.floor(n/1000))+" thousand"+(n%1000?" "+nw(n%1000):"");return String(n);}
 var ORD={1:"first",2:"second",3:"third",4:"fourth",5:"fifth",6:"sixth",7:"seventh",8:"eighth",9:"ninth",10:"tenth",11:"eleventh",12:"twelfth",13:"thirteenth",14:"fourteenth",15:"fifteenth",16:"sixteenth",17:"seventeenth",18:"eighteenth",19:"nineteenth",20:"twentieth",21:"twenty first",22:"twenty second",23:"twenty third",30:"thirtieth",31:"thirty first"};
-var HOMO={two:"to",too:"to",four:"for",their:"there","they're":"there",theyre:"there",write:"right",buy:"by",bye:"by",sea:"see",eye:"i",hear:"here",ok:"okay",alright:"all right",cause:"because",gonna:"going to",wanna:"want to"};
+var HOMO={two:"to",too:"to",four:"for",their:"there","they're":"there",theyre:"there",write:"right",buy:"by",bye:"by",sea:"see",eye:"i",hear:"here",whether:"weather",weak:"week",piece:"peace",ok:"okay",alright:"all right",cause:"because",gonna:"going to",wanna:"want to"};
 function norm(s){
   s=fill(s).toLowerCase();
   s=s.replace(/\$(\d+)/g,"$1 dollars");
@@ -283,7 +308,9 @@ function norm(s){
   return out;
 }
 function lev(a,b){if(a===b)return 0;var m=a.length,n=b.length,d=[];for(var i=0;i<=m;i++){d[i]=[i];}for(var j=0;j<=n;j++)d[0][j]=j;for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n];}
-function same(a,b){return a===b||(a.length>=4&&b.length>=4&&lev(a,b)<=1)||(a+"s"===b)||(b+"s"===a);}
+var CONFUSE=/^(lr|rl|vw|wv|vb|bv|nl|ln)$/;
+function confusable(a,b){if(a.length!==b.length)return false;var d=[];for(var i=0;i<a.length;i++)if(a[i]!==b[i])d.push(a[i]+b[i]);return d.length===1&&CONFUSE.test(d[0]);}
+function same(a,b){return a===b||(a.length>=4&&b.length>=4&&lev(a,b)<=1&&!confusable(a,b))||(a+"s"===b)||(b+"s"===a);}
 function compare(target,heard){
   // 回傳 {score, marks:[{w:原詞, ok:bool}]}
   var display=fill(target).split(/\s+/);
@@ -303,11 +330,114 @@ function compare(target,heard){
   score=Math.max(0,Math.min(100,score));
   var wordOk=display.map(function(){return null;});
   tokMap.forEach(function(wi,k){wordOk[wi]=(wordOk[wi]===null?true:wordOk[wi])&&hit[k];});
-  return{score:score,marks:display.map(function(w,i){return{w:w,ok:wordOk[i]!==false};})};
+  return{score:score,ratio:m?okCount/m:0,total:m,extra:extra,marks:display.map(function(w,i){return{w:w,ok:wordOk[i]!==false};})};
 }
 function bestOf(target,alts){var best={score:-1,marks:[],heard:""};alts.forEach(function(a){var r=compare(target,a);if(r.score>best.score){best=r;best.heard=a;}});return best;}
 function scoreClass(s){return s>=85?"good":s>=60?"mid":"low";}
-function scoreWord(s){return s>=95?"太完美了！":s>=85?"很棒，發音清楚！":s>=60?"不錯，紅字再練一次":"再慢一點、清楚一點試試";}
+function scoreWord(s){return s>=95?"太完美了！":s>=85?"很棒，發音清楚！":s>=60?"不錯，照下面的建議再練一次":"再慢一點、清楚一點試試";}
+function grade(s){return s>=95?"S":s>=85?"A":s>=70?"B":"C";}
+function gradeHTML(s){var g=grade(s);return'<span class="grade g'+g+'">'+g+'</span>';}
+
+/* ---------- 發音建議 ---------- */
+var FUNC_W=["a","an","the","to","of","for","and","is","are","am","in","on","at","it","do","be","was","you","my","me","some","with","from","this","that","can","will","have","has"];
+function cleanW(w){return w.toLowerCase().replace(/[^a-z']/g,"").replace(/'/g,"");}
+function diffPair(a,b){
+  if(a.length!==b.length||a===b)return null;
+  var d=[];for(var i=0;i<a.length;i++)if(a[i]!==b[i])d.push(a[i]+b[i]);
+  return d.length===1?d[0]:null;
+}
+function tipsFor(target,res){
+  var tips=[];
+  if(!res.heard||!res.heard.trim())return[{h:"沒有聽到聲音",b:"靠近手機麥克風，按下後等半秒再開口，說完停一下讓它自動結束。"}];
+  if(res.score>=95)return[];
+  var miss=res.marks.filter(function(m){return!m.ok;}).map(function(m){return cleanW(m.w);}).filter(Boolean);
+  var heardT=norm(res.heard);
+  var used={};
+  function add(key,h,b){if(!used[key]&&tips.length<3){used[key]=1;tips.push({h:h,b:b});}}
+  if(miss.length&&miss.length>=Math.ceil(res.marks.length*0.5)){
+    var ws=fill(target).split(/\s+/),half=Math.ceil(ws.length/2);
+    add("chunk","一半以上沒被聽懂","先按「慢速」聽一次，把句子切成兩段練：「"+ws.slice(0,half).join(" ")+"」／「"+ws.slice(half).join(" ")+"」，熟了再整句連起來。");
+  }
+  var th=miss.filter(function(w){return/th/.test(w);});
+  if(th.length)add("th","TH 音："+th.join("、"),"舌尖輕放在上下門牙之間吹氣。think 不是 sink，this 不是 dis。");
+  miss.forEach(function(w){
+    heardT.forEach(function(h){
+      var p=diffPair(w,h);if(!p)return;
+      if(p==="lr"||p==="rl")add("lr","L／R："+w+"（聽成 "+h+"）","R 舌頭往後捲、不碰上顎；L 舌尖頂住上排牙齒後面。");
+      else if(/^(vw|wv|vb|bv)$/.test(p))add("vw","V 音："+w+"（聽成 "+h+"）","上排牙齒輕咬下唇再出聲，V 會有震動感；W 是嘟嘴不碰牙齒。");
+      else if(/^(nl|ln)$/.test(p))add("nl","N／L："+w+"（聽成 "+h+"）","N 是鼻音，捏住鼻子會發不出來；L 從舌頭兩側出氣。");
+      else if(/^(ei|ie|ae|ea)$/.test(p))add("vowel","母音："+w+"（聽成 "+h+"）","這個字的母音不太準，按「慢速」聽這個字，嘴型張大一點跟著念三次。");
+    });
+  });
+  var ed=miss.filter(function(w){return/ed$/.test(w)&&w.length>3;});
+  if(ed.length)add("ed","過去式 -ed："+ed.join("、"),"字尾的 -ed 要念出來（t／d／id 的音），不然會被聽成現在式。");
+  var s=miss.filter(function(w){return/[^s]s$/.test(w)&&w.length>3&&heardT.indexOf(w.slice(0,-1))>=0;});
+  if(s.length)add("s","字尾 S："+s.join("、"),"複數和第三人稱的 s 要清楚發出「ㄙ」或「ㄗ」的音。");
+  var fin=miss.filter(function(w){return/[dtkgpb]$/.test(w)&&!/ed$/.test(w)&&w.length>2&&heardT.some(function(h){return h.length>=2&&w.indexOf(h)===0&&h!==w;});});
+  if(fin.length)add("final","字尾子音："+fin.join("、"),"字尾的 d、t、k 不要吞掉，輕輕收乾淨，例如 made 不是 may。");
+  var fw=miss.filter(function(w){return FUNC_W.indexOf(w)>=0;});
+  if(fw.length)add("func","小字漏掉了："+fw.join("、"),"a、the、to 這類小字要輕輕帶過但不能省略，把它和下一個字連在一起念。");
+  if((res.extra||0)>=4)add("extra","多說了一些字","照著句子說就好，先求準確，再求自然。");
+  var rest=miss.filter(function(w){return!used.any;});
+  if(!tips.length&&rest.length)add("generic","要加強："+rest.slice(0,4).join("、"),"按「慢速」仔細聽這幾個字，跟著念三次，再試整句。");
+  return tips;
+}
+function tipsHTML(tips){
+  if(!tips||!tips.length)return"";
+  return'<div class="tips">'+tips.map(function(t){return'<div class="tipitem"><b>'+esc(t.h)+'</b><span>'+esc(t.b)+'</span></div>';}).join("")+'</div>';
+}
+
+/* ---------- 自由開口分析 ---------- */
+var CONNECT=["because","so","but","and then","i think","actually","also","for example","when","if","after","before","first","then","finally","really","usually","maybe"];
+function freeAnalyze(text,secs,hints){
+  var toks=norm(text),words=toks.length,joined=" "+toks.join(" ")+" ";
+  var wpm=secs>=10?Math.round(words/(secs/60)):0;
+  var usedP=hints.filter(function(p){var r=compare(p[0],text);return r.total>=3&&r.ratio>=0.75;});
+  var conns=CONNECT.filter(function(c){return joined.indexOf(" "+c+" ")>=0;});
+  var score=Math.min(40,Math.round(words/60*40))+Math.min(20,Math.round(secs/30*20))+Math.min(20,usedP.length*10)+Math.min(20,conns.length*5);
+  if(!words)score=0;
+  var tips=[];
+  if(!words)tips.push({h:"沒有辨識到內容",b:"靠近麥克風再說一次；如果一直失敗，可以用「錄音回放」自己聽，再給自己打星星。"});
+  else{
+    if(words<30)tips.push({h:"再多說一點（"+words+" 個字）",b:"每個重點後面加一句原因或例子，例如 because…、for example…，目標 60 個字以上。"});
+    if(secs>10&&wpm<70)tips.push({h:"停頓比較多（每分鐘 "+wpm+" 字）",b:"先用中文想好三個重點再開口；卡住時可以說 well… 或 let me think… 爭取時間，不要停住。"});
+    if(secs>=10&&wpm>170)tips.push({h:"說得太快（每分鐘 "+wpm+" 字）",b:"放慢到每分鐘 110–150 字，句子之間停半拍，對方比較聽得懂。"});
+    if(conns.length<2)tips.push({h:"句子之間少了連接詞",b:"試著用 I think…、because…、so…、and then… 把句子串起來，聽起來會更流暢。"});
+    if(!usedP.length&&hints.length)tips.push({h:"用上本週的句子",b:"例如：「"+fill(hints[0][0])+"」把這週學的句子放進你的回答裡。"});
+    if(!tips.length)tips.push({h:"表現很好！",b:"內容長度、速度和連接詞都到位了，下次試著說滿一分鐘。"});
+  }
+  return{score:Math.max(0,Math.min(100,score)),words:words,secs:secs,wpm:wpm,used:usedP.map(function(p){return fill(p[0]);}),conns:conns,tips:tips.slice(0,3)};
+}
+
+/* ---------- 錯題本與週報資料 ---------- */
+function recordResult(en,zh,score,marks,day){
+  if(!en)return;
+  S.mist=S.mist||{};S.wlog=S.wlog||{};
+  var k=fill(en);
+  if(score<60){var m=S.mist[k]||{zh:fill(zh),n:0};m.n++;m.t=todayStr();S.mist[k]=m;}
+  else if(score>=85&&S.mist[k])delete S.mist[k];
+  if(day>0&&marks){
+    var w=Math.min(51,Math.floor((day-1)/7)),log=S.wlog[w]||(S.wlog[w]={});
+    marks.forEach(function(x){if(!x.ok){var c=cleanW(x.w);if(c)log[c]=(log[c]||0)+1;}});
+  }
+}
+function mistList(){S.mist=S.mist||{};return Object.keys(S.mist).map(function(k){return{en:k,zh:S.mist[k].zh,n:S.mist[k].n};}).sort(function(a,b){return b.n-a.n;});}
+function weekStats(w){
+  var sum=0,n=0;for(var d=w*7+1;d<=w*7+7;d++)if(S.done[d]){sum+=S.done[d].score||0;n++;}
+  return{n:n,avg:n?Math.round(sum/n):null};
+}
+function weekReportHTML(w){
+  var cur=weekStats(w);if(!cur.n)return"";
+  var prev=null;for(var p=w-1;p>=0;p--){var ps=weekStats(p);if(ps.n){prev=ps;break;}}
+  var log=(S.wlog||{})[w]||{},top=Object.keys(log).sort(function(a,b){return log[b]-log[a];}).slice(0,5);
+  var diff=prev&&prev.avg!=null?cur.avg-prev.avg:null;
+  var h='<section class="report"><div class="sec-h"><h3>第 '+(w+1)+' 週週報</h3><span class="muted" style="font-size:13px">'+esc(WEEKS[w].t)+'</span></div>';
+  h+='<div class="rep-row"><div class="rep-grade">'+gradeHTML(cur.avg)+'</div><div class="rep-stats">';
+  h+='<div><b>'+cur.n+'/7</b><span>完成天數</span></div><div><b>'+cur.avg+'</b><span>平均分數</span></div>';
+  h+='<div><b class="'+(diff==null?"":diff>=0?"up":"down")+'">'+(diff==null?"—":(diff>=0?"+":"")+diff)+'</b><span>比上週</span></div></div></div>';
+  h+=top.length?'<div class="tip" style="margin-top:10px">這週最常錯的字：'+top.map(function(x){return'<span class="wtag">'+esc(x)+' ×'+log[x]+'</span>';}).join(" ")+'</div>':'<div class="tip" style="margin-top:10px">這週沒有特別常錯的字，很穩！</div>';
+  return h+'</section>';
+}
 
 /* ---------- 錄音 ---------- */
 var mediaRec=null,recChunks=[],recStream=null;
@@ -329,6 +459,22 @@ function stopRec(){
   });
 }
 
+/* ---------- 長時間語音轉文字（自由開口） ---------- */
+var longStop=null;
+function startLong(onText,onEnd){
+  var finals="",stopped=false,ended=false,cur=null;
+  function end(err){if(ended)return;ended=true;longStop=null;onEnd(finals.trim(),err);}
+  function run(){
+    var r=new SR();cur=r;r.lang="en-US";r.continuous=true;r.interimResults=true;
+    r.onresult=function(e){var interim="";for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finals+=e.results[i][0].transcript+" ";else interim+=e.results[i][0].transcript;}onText((finals+interim).trim());};
+    r.onerror=function(e){if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){stopped=true;end(e.error);}};
+    r.onend=function(){if(stopped)end();else{try{run();}catch(x){end();}}};
+    r.start();
+  }
+  run();
+  longStop=function(){stopped=true;try{cur&&cur.stop();}catch(e){end();}};
+}
+
 /* ---------- 畫面：首頁 ---------- */
 function renderHome(){
   stopAll();
@@ -343,7 +489,12 @@ function renderHome(){
   h+='<div class="muted" style="color:inherit;opacity:.75;font-size:14.5px">'+esc(info.type.d)+'</div>';
   h+='<button class="btn primary block" id="go">'+IC.mic+(allDone?"再練一次畢業日":"開始今天的練習")+'</button>';
   h+='</section>';
-  h+='<div class="stats"><div class="stat"><b>'+streak()+'</b><span>連續天數</span></div><div class="stat"><b>'+doneCount()+'</b><span>已完成天數</span></div><div class="stat"><b>'+avgScore()+'</b><span>平均分數</span></div></div>';
+  var avg=avgScore();
+  h+='<div class="stats"><div class="stat"><b>'+streak()+'</b><span>連續天數</span></div><div class="stat"><b>'+doneCount()+'</b><span>已完成天數</span></div><div class="stat"><b>'+(doneCount()?avg+' '+gradeHTML(avg):'0')+'</b><span>平均分數</span></div></div>';
+  var ml=mistList();
+  if(ml.length)h+='<section class="mistcard"><div><b>錯題本 · '+ml.length+' 句</b><div class="tip">低於 60 分的句子會收在這裡，練到 85 分以上自動移除。</div></div><button class="btn ghost" id="mist">練錯題</button></section>';
+  var lastDone=0;Object.keys(S.done).forEach(function(k){if(+k>lastDone&&+k<365)lastDone=+k;});
+  if(lastDone)h+=weekReportHTML(Math.floor((lastDone-1)/7));
   h+='<div class="sec-h"><h3>365 天進度</h3><span class="muted" style="font-size:13px">點任一天都能練</span></div><div class="months">';
   for(var m=0;m<12;m++){
     var r=monthRange(m),md=0;for(var d=r[0];d<=r[1];d++)if(S.done[d])md++;
@@ -352,14 +503,16 @@ function renderHome(){
     h+='<div class="tip" style="margin:-4px 0 8px">'+WEEKS.slice(w0,w0+WEEKS_PER_MONTH[m]).map(function(x){return esc(x.t);}).join("、")+'</div><div class="grid">';
     for(d=r[0];d<=r[1];d++){
       var c="cell";if(S.done[d]){c+=" done";if((S.done[d].score||0)<60)c+=" lo";}if(d===nd&&!allDone)c+=" next";if(d===365&&!S.done[d])c+=" grad";
-      h+='<button class="'+c+'" data-day="'+d+'" aria-label="第 '+d+' 天'+(S.done[d]?"，已完成":"")+'">'+d+'</button>';
+      h+='<button class="'+c+'" data-day="'+d+'" aria-label="第 '+d+' 天'+(S.done[d]?"，已完成，"+grade(S.done[d].score||0)+" 級":"")+'">'+d+'</button>';
     }
     h+='</div></div>';
   }
   h+='</div><div class="legend"><span><i style="background:var(--good)"></i>完成</span><span><i style="background:color-mix(in srgb,var(--good) 55%,var(--cell))"></i>完成但低於 60 分</span><span><i style="background:var(--cell);outline:2px solid var(--voice)"></i>下一堂</span></div>';
+  h+='<p class="tip" style="margin-top:14px">等級：S ≥ 95 · A ≥ 85 · B ≥ 70 · C &lt; 70</p>';
   $app.innerHTML=h;$dock.innerHTML="";
   document.getElementById("go").onclick=function(){openLesson(nd);};
   document.getElementById("gear").onclick=renderSettings;
+  var mb=document.getElementById("mist");if(mb)mb.onclick=openMistakes;
   $app.querySelectorAll("[data-day]").forEach(function(b){b.onclick=function(){openLesson(+b.dataset.day);};});
   window.scrollTo(0,0);
 }
@@ -385,15 +538,18 @@ function buildItems(info){
       items.push({k:"free",prompt:wk.f,hints:p.slice(0,8)});
       break;
     case "review":
-      var pool=shuffle(p,r).slice(0,4).map(function(x){return{en:x[0],zh:x[1]};});
+      var pool=mistList().slice(0,3).map(function(x){return{en:x.en,zh:x.zh,mist:true};});
+      var seen={};pool.forEach(function(x){seen[x.en]=1;});
+      shuffle(p,r).forEach(function(x){if(pool.length<6&&!seen[fill(x[0])]){pool.push({en:x[0],zh:x[1]});seen[fill(x[0])]=1;}});
       var past=[];for(var w=0;w<info.w;w++)WEEKS[w].p.forEach(function(x){past.push({en:x[0],zh:x[1]});});
-      if(!past.length)past=shuffle(p,r).slice(4).map(function(x){return{en:x[0],zh:x[1]};});
-      shuffle(past,r).slice(0,4).forEach(function(x){pool.push(x);});
-      shuffle(pool,r).forEach(function(x){items.push({k:"recall",en:x.en,zh:x.zh});});
+      if(!past.length)past=p.map(function(x){return{en:x[0],zh:x[1]};});
+      shuffle(past,r).forEach(function(x){if(pool.length<8&&!seen[fill(x.en)]){pool.push(x);seen[fill(x.en)]=1;}});
+      shuffle(pool,r).forEach(function(x){items.push({k:"recall",en:x.en,zh:x.zh,mist:x.mist});});
       break;
     case "grad":
       var all=[];WEEKS.forEach(function(W){W.p.forEach(function(x){all.push(x);});});
-      shuffle(all,r).slice(0,8).forEach(function(x){items.push({k:"recall",en:x[0],zh:x[1]});});
+      mistList().slice(0,3).forEach(function(x){items.push({k:"recall",en:x.en,zh:x.zh,mist:true});});
+      shuffle(all,r).slice(0,8-items.length).forEach(function(x){items.push({k:"recall",en:x[0],zh:x[1]});});
       items.push({k:"free",prompt:"畢業演講：用兩分鐘說出你這 365 天學英文的故事——一開始怎樣、中間最難的是什麼、現在能做到什麼。",hints:WEEKS[51].p});
       break;
   }
@@ -402,11 +558,18 @@ function buildItems(info){
 
 /* ---------- 練習流程 ---------- */
 var L=null;
-function stopAll(){stopListen();if(synth)synth.cancel();if(mediaRec)stopRec();if(L&&L.timer){clearInterval(L.timer);L.timer=null;}}
+function stopAll(){stopListen();if(longStop)longStop();if(synth)synth.cancel();if(mediaRec)stopRec();if(L&&L.timer){clearInterval(L.timer);L.timer=null;}}
 function openLesson(d){
   stopAll();
   var info=dayInfo(d);
   L={info:info,items:buildItems(info),i:0,scores:[],state:{}};
+  renderItem();
+}
+function openMistakes(){
+  stopAll();
+  var ml=mistList().slice(0,10);
+  if(!ml.length){toast("錯題本是空的");return;}
+  L={info:{d:0,type:{k:"mist",n:"錯題本"},week:{t:"把錯過的句子練回來"}},items:ml.map(function(x){return{k:"recall",en:x.en,zh:x.zh,mist:true};}),i:0,scores:[],state:{},custom:true};
   renderItem();
 }
 function curItem(){return L.items[L.i];}
@@ -415,9 +578,9 @@ function renderItem(){
   var info=L.info,it=curItem(),st=L.state[L.i]||(L.state[L.i]={});
   var pct=Math.round(100*L.i/L.items.length);
   var h='<div class="lesson-top"><button class="iconbtn" id="back" aria-label="回首頁">'+IC.back+'</button><div class="bar"><i style="width:'+pct+'%"></i></div><span class="muted" style="font-size:13px;font-variant-numeric:tabular-nums">'+(L.i+1)+'/'+L.items.length+'</span></div>';
-  h+='<div class="lesson-title"><div class="eyebrow">Day '+info.d+' · '+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2></div>';
+  h+='<div class="lesson-title"><div class="eyebrow">'+(info.d?'Day '+info.d+' · ':'')+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2></div>';
   h+='<div class="card" id="card">'+cardHTML(it,st)+'</div>';
-  if(it.k!=="free"&&it.k!=="dialog")h+='<p class="tip" style="margin-top:12px">按橘色麥克風開始說，說完會自動停止並評分。綠色是說對的字，紅色是要再加強的字。</p>';
+  if(it.k!=="free"&&it.k!=="dialog")h+='<p class="tip" style="margin-top:12px">按橘色麥克風開始說，說完會自動停止並評分。綠色是說對的字，紅色是要加強的字，下方會有發音建議。</p>';
   $app.innerHTML=h;
   document.getElementById("back").onclick=renderHome;
   bindCard(it,st);
@@ -427,10 +590,11 @@ function renderItem(){
 function marksHTML(marks){return marks.map(function(m){return'<span class="w '+(m.ok?"ok":"miss")+'">'+esc(m.w)+'</span>';}).join(" ");}
 function resultHTML(st){
   if(st.score==null)return"";
-  return'<div class="score '+scoreClass(st.score)+'"><span class="num">'+st.score+'</span><div><div style="font-weight:700">'+scoreWord(st.score)+'</div><div class="tip">第 '+st.tries+' 次嘗試</div></div></div>'+
-    '<div class="heard">辨識到：<b>'+esc(st.heard||"（沒有聽到聲音）")+'</b></div>';
+  var h='<div class="score '+scoreClass(st.score)+'"><span class="num">'+st.score+'</span>'+gradeHTML(st.score)+'<div><div style="font-weight:700">'+scoreWord(st.score)+'</div><div class="tip">第 '+st.tries+' 次嘗試'+(st.lastScore!=null&&st.lastScore!==st.score?'（這次 '+st.lastScore+' 分，保留最高分）':'')+'</div></div></div>';
+  h+='<div class="heard">辨識到：<b>'+esc(st.heard||"（沒有聽到聲音）")+'</b></div>';
+  return h+tipsHTML(st.tips);
 }
-function audioRow(en,b){
+function audioRow(){
   return'<div class="row"><button class="pill" data-say="n">'+IC.play+'聽一次</button><button class="pill" data-say="s">'+IC.slow+'慢速</button>'+
     (canRecord()?'<button class="pill" data-rec>'+IC.rec+'錄音對照</button>':'')+'</div><div id="myrec"></div>';
 }
@@ -440,7 +604,7 @@ function cardHTML(it,st){
     if(it.who)h+='<div class="who">'+esc(it.who)+'</div>';
     h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.en)))+'</div><div class="zh">'+esc(fill(it.zh))+'</div>'+audioRow()+'<div id="res">'+resultHTML(st)+'</div>';
   }else if(it.k==="recall"){
-    h+='<div class="who">用英文怎麼說？</div><div class="zh big">'+esc(fill(it.zh))+'</div>';
+    h+='<div class="who">'+(it.mist?'<span class="wtag">錯題</span> ':'')+'用英文怎麼說？</div><div class="zh big">'+esc(fill(it.zh))+'</div>';
     if(st.reveal||st.score!=null)h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.en)))+'</div>'+audioRow();
     else h+='<div class="hidden-en">先試著自己說，再看答案<br><button class="pill" id="reveal" style="margin-top:10px">顯示答案</button></div>';
     h+='<div id="res">'+resultHTML(st)+'</div>';
@@ -458,31 +622,41 @@ function cardHTML(it,st){
   }else if(it.k==="free"){
     h+='<div class="who">今天的題目</div><div class="zh big">'+esc(it.prompt)+'</div>';
     h+='<details><summary class="tip" style="cursor:pointer">可以用到的句子（本週）</summary><ul style="margin:8px 0 0;padding-left:20px;font-size:14.5px">'+it.hints.map(function(x){return'<li>'+esc(fill(x[0]))+' <span class="muted">'+esc(fill(x[1]))+'</span></li>';}).join("")+'</ul></details>';
-    h+='<div style="display:flex;align-items:center;gap:14px"><span class="timer" id="timer">'+fmt(st.secs||0)+'</span><span class="tip">目標：說滿 30–60 秒<br>按下方麥克風開始錄音</span></div>';
-    h+='<div id="myrec">'+(st.url?'<audio controls src="'+st.url+'" style="width:100%"></audio>':'')+'</div>';
-    if(st.url){
-      h+='<div><div style="font-weight:700;margin-bottom:6px">聽完自己的錄音，給自己打分</div><div class="stars" id="stars">'+[1,2,3,4,5].map(function(n){return'<button data-star="'+n+'" class="'+((st.stars||0)>=n?"on":"")+'" aria-label="'+n+' 顆星">★</button>';}).join("")+'</div></div>';
-      h+=["說話過程沒有停太久","用到了本週的句子","說滿 30 秒以上","敢再錄一次挑戰更好"].map(function(t,i){return'<label class="check"><input type="checkbox" id="ck'+i+'" '+((st.ck||[])[i]?"checked":"")+'> '+t+'</label>';}).join("");
+    h+='<div style="display:flex;align-items:center;gap:14px"><span class="timer" id="timer">'+fmt(st.secs||0)+'</span><span class="tip">目標：說滿 30–60 秒<br>按下方麥克風開始說，說完再按一次停止</span></div>';
+    h+='<div class="heard" id="live">'+(st.text?esc(st.text):'<span class="muted">你說的內容會即時顯示在這裡</span>')+'</div>';
+    var a=st.analysis;
+    if(a){
+      h+='<div class="score '+scoreClass(a.score)+'"><span class="num">'+a.score+'</span>'+gradeHTML(a.score)+'<div><div style="font-weight:700">'+scoreWord(a.score)+'</div><div class="tip">自動評分</div></div></div>';
+      h+='<div class="metrics"><div><b>'+a.words+'</b><span>字數</span></div><div><b>'+(a.wpm||"—")+'</b><span>每分鐘字數</span></div><div><b>'+a.used.length+'</b><span>本週句子</span></div><div><b>'+a.conns.length+'</b><span>連接詞</span></div></div>';
+      if(a.used.length)h+='<div class="tip">用到的本週句子：'+a.used.map(esc).join("／")+'</div>';
+      if(a.conns.length)h+='<div class="tip">用到的連接詞：'+a.conns.map(esc).join("、")+'</div>';
+      h+=tipsHTML(a.tips);
+    }
+    h+=(canRecord()?'<div class="row"><button class="pill" data-rec>'+IC.rec+'錄音回放（自己聽）</button></div>':'')+'<div id="myrec">'+(st.url?'<audio controls src="'+st.url+'" style="width:100%"></audio>':'')+'</div>';
+    if(a||st.url){
+      h+='<div><div style="font-weight:700;margin-bottom:6px">給自己打分'+(a?'（選填，會占總分 20%）':'')+'</div><div class="stars" id="stars">'+[1,2,3,4,5].map(function(n){return'<button data-star="'+n+'" class="'+((st.stars||0)>=n?"on":"")+'" aria-label="'+n+' 顆星">★</button>';}).join("")+'</div></div>';
     }
   }
   return h;
 }
 function fmt(s){return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
 function targetOf(it){return it.k==="role"?it.b[1]:it.en;}
+function zhOf(it){return it.k==="role"?it.b[2]:it.zh;}
 function bindCard(it,st){
   var c=document.getElementById("card");
   c.querySelectorAll("[data-say]").forEach(function(b){b.onclick=function(){speak(targetOf(it),{slow:b.dataset.say==="s",b:it.k==="role"||it.who==="你"});};});
   var rv=document.getElementById("reveal");if(rv)rv.onclick=function(){st.reveal=true;renderItem();};
   var sa=document.getElementById("sayA");if(sa)sa.onclick=function(){speak(it.a[1]);};
   var rec=c.querySelector("[data-rec]");
-  if(rec)rec.onclick=function(){
-    if(mediaRec){stopRec().then(function(url){rec.classList.remove("on");rec.innerHTML=IC.rec+"錄音對照";if(url)document.getElementById("myrec").innerHTML='<audio controls src="'+url+'" style="width:100%"></audio>';});}
+  if(rec){var label=rec.innerHTML;rec.onclick=function(){
+    if(longStop){toast("請先停止說話評分，再錄音");return;}
+    if(mediaRec){stopRec().then(function(url){rec.classList.remove("on");rec.innerHTML=label;if(url){if(it.k==="free")st.url=url;document.getElementById("myrec").innerHTML='<audio controls src="'+url+'" style="width:100%"></audio>';if(it.k==="free"&&!document.getElementById("stars"))renderItem();}});}
     else startRec().then(function(){rec.classList.add("on");rec.innerHTML=IC.stop+"停止錄音";}).catch(function(){toast("無法使用麥克風，請在瀏覽器設定允許麥克風");});
-  };
+  };}
   if(it.k==="dialog"){
     var playing=false;
-    function playAll(slow){
-      if(playing){playing=false;synth&&synth.cancel();return;}
+    var playAll=function(slow){
+      if(playing){playing=false;if(synth)synth.cancel();return;}
       playing=true;var i=0;
       (function next(){
         c.querySelectorAll(".line").forEach(function(el){el.classList.remove("now");});
@@ -490,59 +664,59 @@ function bindCard(it,st){
         var el=c.querySelector('[data-line="'+i+'"]');el.classList.add("now");el.scrollIntoView({block:"nearest",behavior:"smooth"});
         var x=it.d.l[i];speak(x[1],{slow:slow,b:x[0]==="B"}).then(function(){i++;setTimeout(next,350);});
       })();
-      st.heardAll=true;
-    }
+    };
     document.getElementById("playall").onclick=function(){playAll(false);};
     document.getElementById("playslow").onclick=function(){playAll(true);};
   }
-  if(it.k==="free"&&st.url){
-    c.querySelectorAll("[data-star]").forEach(function(b){b.onclick=function(){st.stars=+b.dataset.star;renderItem();};});
-    for(var i=0;i<4;i++)(function(i){var el=document.getElementById("ck"+i);if(el)el.onchange=function(){st.ck=st.ck||[];st.ck[i]=el.checked;};})(i);
-  }
+  if(it.k==="free")c.querySelectorAll("[data-star]").forEach(function(b){b.onclick=function(){st.stars=+b.dataset.star;renderItem();};});
   if(it.k==="role"&&!st.autoplayed){st.autoplayed=true;setTimeout(function(){speak(it.a[1]);},300);}
 }
 function renderDock(it,st){
   var last=L.i===L.items.length-1;
-  var canNext=it.k==="dialog"||(it.k==="free"?!!st.stars:st.score!=null||st.skipOk);
+  var canNext=it.k==="dialog"||(it.k==="free"?!!(st.analysis||st.stars):st.score!=null);
   var h='<div class="dock"><div class="dock-in">';
-  if(it.k!=="dialog")h+='<div><button class="mic" id="mic" aria-label="'+(it.k==="free"?"錄音":"開始說")+'">'+IC.mic+'</button></div>';
-  h+='<button class="btn '+(canNext?"primary":"ghost")+'" id="next">'+(last?"完成今天":"下一個")+'</button>';
+  if(it.k!=="dialog")h+='<div><button class="mic" id="mic" aria-label="'+(it.k==="free"?"開始說話":"開始說")+'">'+IC.mic+'</button></div>';
+  h+='<button class="btn '+(canNext?"primary":"ghost")+'" id="next">'+(last?(L.custom?"完成":"完成今天"):(canNext?"下一個":"跳過"))+'</button>';
   h+='</div></div>';
   $dock.innerHTML=h;
   document.getElementById("next").onclick=function(){
-    if(!canNext&&it.k!=="free"){st.skipOk=true;st.score=st.score==null?0:st.score;}
-    if(it.k==="free"&&!st.stars){toast(st.url?"先給自己打個星星分數":"先錄一段，再給自己打分");return;}
+    if(it.k==="free"&&!canNext){toast("先按麥克風說一段話，或錄音後給自己打分");return;}
+    if(!canNext&&it.k!=="dialog"){st.skipped=true;st.score=0;}
     advance();
   };
   var mic=document.getElementById("mic");
   if(!mic)return;
   if(it.k==="free"){
     mic.onclick=function(){
-      if(mediaRec){
-        clearInterval(L.timer);L.timer=null;mic.classList.remove("live");mic.innerHTML=IC.mic;
-        stopRec().then(function(url){st.url=url;renderItem();});
-      }else{
-        if(!canRecord()){toast("這個瀏覽器無法錄音，請改用 Safari 或 Chrome");return;}
-        startRec().then(function(){
-          st.secs=0;st.url=null;mic.classList.add("live");mic.innerHTML=IC.stop;
-          var tEl=document.getElementById("timer");
-          L.timer=setInterval(function(){st.secs++;if(tEl)tEl.textContent=fmt(st.secs);if(st.secs>=180)mic.click();},1000);
-        }).catch(function(){toast("無法使用麥克風，請在瀏覽器設定允許麥克風");});
-      }
+      if(longStop){longStop();return;}
+      if(mediaRec){toast("請先停止錄音");return;}
+      if(!SR){toast("這個瀏覽器不支援語音辨識，請用「錄音回放」後自己打分");return;}
+      st.secs=0;st.text="";st.analysis=null;
+      mic.classList.add("live");mic.innerHTML=IC.stop;
+      var tEl=document.getElementById("timer"),live=document.getElementById("live");
+      live.textContent="正在聽…";
+      L.timer=setInterval(function(){st.secs++;if(tEl)tEl.textContent=fmt(st.secs);if(st.secs>=180&&longStop)longStop();},1000);
+      startLong(function(t){st.text=t;live.textContent=t||"正在聽…";},function(text,err){
+        clearInterval(L.timer);L.timer=null;
+        if(err){toast("麥克風或語音辨識被拒絕，請到瀏覽器設定允許（iPhone 需開啟 Siri 與聽寫）");}
+        st.text=text||st.text||"";
+        st.analysis=freeAnalyze(st.text,st.secs,it.hints);
+        renderItem();
+      });
     };
     return;
   }
   mic.onclick=function(){
     if(recog){stopListen();return;}
+    if(mediaRec){toast("請先停止錄音");return;}
     if(!SR){toast("這個瀏覽器不支援語音辨識，請用 iPhone Safari 或 Chrome；可先用「錄音對照」練習");return;}
     mic.classList.add("live");mic.innerHTML=IC.stop;
     var res=document.getElementById("res");
     res.innerHTML='<div class="heard">正在聽… <b id="interim"></b></div>';
     listen(function(t){var el=document.getElementById("interim");if(el)el.textContent=t;}).then(function(alts){
       var target=targetOf(it),best=bestOf(target,alts.length?alts:[""]);
-      st.tries=(st.tries||0)+1;
-      if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;}
-      st.heard=best.heard;st.lastScore=best.score;
+      st.tries=(st.tries||0)+1;st.lastScore=best.score;
+      if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;st.heard=best.heard;st.tips=tipsFor(target,best);}
       renderItem();
       if(best.score>=85&&navigator.vibrate)navigator.vibrate(30);
     }).catch(function(err){
@@ -554,26 +728,41 @@ function renderDock(it,st){
 }
 function advance(){
   var st=L.state[L.i],it=curItem();
-  if(it.k==="free")L.scores.push((st.stars||0)*20);
-  else if(it.k!=="dialog")L.scores.push(st.score||0);
+  if(it.k==="free"){
+    var a=st.analysis,sc=a?(st.stars?Math.round(a.score*0.8+st.stars*20*0.2):a.score):(st.stars||0)*20;
+    L.scores.push(sc);
+  }else if(it.k!=="dialog"){
+    L.scores.push(st.score||0);
+    if(!st.skipped)recordResult(targetOf(it),zhOf(it),st.score||0,st.marks,L.info.d);
+    if(!st.skipped&&st.score!=null&&st.score<85)(L.weak=L.weak||[]).push({en:fill(targetOf(it)),score:st.score,tip:(st.tips||[])[0]});
+  }
+  save();
   if(L.i<L.items.length-1){L.i++;renderItem();}
   else finish();
 }
 function finish(){
   stopAll();
   var sc=L.scores.length?Math.round(L.scores.reduce(function(a,b){return a+b;},0)/L.scores.length):100;
-  var d=L.info.d,prev=S.done[d];
-  S.done[d]={date:prev?prev.date:todayStr(),score:prev?Math.max(prev.score,sc):sc};
-  save();
-  var nd=nextDay(),grad=d===365;
-  var h='<div class="summary"><div class="eyebrow">Day '+d+' 完成</div><div class="big-score">'+sc+'</div><h2>'+(grad?"恭喜畢業！365 天，你做到了":sc>=85?"今天說得很好！":sc>=60?"完成！明天繼續":"完成！開口就是進步")+'</h2>';
-  h+='<p class="muted">連續 '+streak()+' 天 · 已完成 '+doneCount()+' / 365 天</p>';
-  if(!grad)h+='<p class="tip">下一堂：Day '+nd+'「'+esc(dayInfo(nd).week.t)+'」· '+esc(dayInfo(nd).type.n)+'</p>';
+  var d=L.info.d,grad=d===365;
+  if(!L.custom){var prev=S.done[d];S.done[d]={date:prev?prev.date:todayStr(),score:prev?Math.max(prev.score,sc):sc};save();}
+  var nd=nextDay();
+  var h='<div class="summary"><div class="eyebrow">'+(L.custom?"錯題本練習完成":"Day "+d+" 完成")+'</div><div class="big-score">'+sc+'</div><div>'+gradeHTML(sc)+'</div><h2>'+(grad?"恭喜畢業！365 天，你做到了":sc>=85?"今天說得很好！":sc>=60?"完成！明天繼續":"完成！開口就是進步")+'</h2>';
+  if(!L.custom)h+='<p class="muted">連續 '+streak()+' 天 · 已完成 '+doneCount()+' / 365 天</p>';
+  else h+='<p class="muted">錯題本還剩 '+mistList().length+' 句</p>';
   h+='</div>';
+  var weak=(L.weak||[]).sort(function(a,b){return a.score-b.score;}).slice(0,3);
+  if(weak.length){
+    h+='<section class="report"><div class="sec-h"><h3>今天最需要加強的句子</h3></div>';
+    weak.forEach(function(w){h+='<div class="weak"><div><b>'+esc(w.en)+'</b> <span class="muted">'+w.score+' 分</span></div>'+(w.tip?'<div class="tip">'+esc(w.tip.h)+'：'+esc(w.tip.b)+'</div>':'')+'</div>';});
+    h+='</section>';
+  }
+  if(!L.custom&&d<365&&L.info.t===6)h+=weekReportHTML(L.info.w);
+  if(!L.custom&&!grad)h+='<p class="tip" style="text-align:center">下一堂：Day '+nd+'「'+esc(dayInfo(nd).week.t)+'」· '+esc(dayInfo(nd).type.n)+'</p>';
   $app.innerHTML=h;
   $dock.innerHTML='<div class="dock"><div class="dock-in"><button class="btn ghost" id="again">再練一次</button><button class="btn primary" id="home">回首頁</button></div></div>';
   document.getElementById("home").onclick=renderHome;
-  document.getElementById("again").onclick=function(){openLesson(d);};
+  document.getElementById("again").onclick=function(){if(L.custom)openMistakes();else openLesson(d);};
+  window.scrollTo(0,0);
 }
 
 /* ---------- 設定 ---------- */
@@ -587,7 +776,7 @@ function renderSettings(){
   h+='<div class="field"><label for="vb">對話中「你」的聲音</label><select id="vb">'+opts(S.voiceB)+'</select></div>';
   h+='<div class="row" style="margin-bottom:24px"><button class="pill" id="test">'+IC.play+'試聽</button></div>';
   h+='<div class="sec-h"><h3>備份進度</h3></div><p class="tip" style="margin-top:0">進度只存在這支手機的瀏覽器裡。換手機或清除瀏覽資料前，先複製備份碼存起來。</p>';
-  h+='<div class="field"><textarea id="bk" aria-label="備份碼">'+esc(JSON.stringify({v:1,name:S.name,done:S.done}))+'</textarea></div>';
+  h+='<div class="field"><textarea id="bk" aria-label="備份碼">'+esc(JSON.stringify({v:2,name:S.name,done:S.done,mist:S.mist||{},wlog:S.wlog||{}}))+'</textarea></div>';
   h+='<div class="row" style="margin-bottom:24px"><button class="pill" id="copy">複製備份碼</button><button class="pill" id="restore">用上面的備份碼還原</button></div>';
   h+='<div class="note"><b>語音辨識小提醒</b><br>iPhone：請用 Safari，並在「設定 → Siri」開啟 Siri、在「鍵盤」開啟聽寫。<br>Android：用 Chrome。第一次使用會詢問麥克風權限，請選允許。<br>目前狀態：語音辨識 '+(SR?"✅ 可用":"❌ 不支援")+'、朗讀 '+(synth?"✅ 可用":"❌ 不支援")+'、錄音 '+(canRecord()?"✅ 可用":"❌ 不支援")+'</div>';
   h+='<div style="margin-top:24px"><button class="pill" id="reset" style="color:var(--bad)">清除所有進度</button></div>';
@@ -599,8 +788,8 @@ function renderSettings(){
   document.getElementById("vb").onchange=function(e){S.voiceB=e.target.value;save();};
   document.getElementById("test").onclick=function(){speak("Hi, I'm your speaking partner. Let's practice together!");};
   document.getElementById("copy").onclick=function(){var t=document.getElementById("bk");var ok=function(){toast("已複製備份碼");};if(navigator.clipboard)navigator.clipboard.writeText(t.value).then(ok,function(){t.select();toast("請長按選取後複製");});else{t.select();toast("請長按選取後複製");}};
-  document.getElementById("restore").onclick=function(){try{var o=JSON.parse(document.getElementById("bk").value);if(!o.done)throw 0;S.done=o.done;if(o.name)S.name=o.name;save();toast("已還原 "+Object.keys(S.done).length+" 天的進度");}catch(e){toast("備份碼格式不對，請重新貼上完整內容");}};
-  var armed=false;document.getElementById("reset").onclick=function(e){if(!armed){armed=true;e.target.textContent="再按一次確認清除";setTimeout(function(){armed=false;e.target.textContent="清除所有進度";},3000);return;}S.done={};save();toast("已清除進度");renderHome();};
+  document.getElementById("restore").onclick=function(){try{var o=JSON.parse(document.getElementById("bk").value);if(!o.done)throw 0;S.done=o.done;if(o.name)S.name=o.name;if(o.mist)S.mist=o.mist;if(o.wlog)S.wlog=o.wlog;save();toast("已還原 "+Object.keys(S.done).length+" 天的進度");}catch(e){toast("備份碼格式不對，請重新貼上完整內容");}};
+  var armed=false;document.getElementById("reset").onclick=function(e){if(!armed){armed=true;e.target.textContent="再按一次確認清除";setTimeout(function(){armed=false;e.target.textContent="清除所有進度";},3000);return;}S.done={};S.mist={};S.wlog={};save();toast("已清除進度");renderHome();};
   window.scrollTo(0,0);
 }
 
