@@ -175,6 +175,9 @@ b.up{color:var(--good)}b.down{color:var(--bad)}
 .weak{display:grid;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
 .weak:first-of-type{border-top:0}
 .summary .grade{min-width:48px;height:48px;font-size:26px}
+.envwarn{background:var(--bad-soft);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:14.5px;margin-bottom:14px;display:grid;gap:2px}
+.envwarn b{color:var(--bad)}
+.diaglog{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;min-height:80px;margin:0 0 16px;font-family:ui-monospace,Menlo,monospace}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -242,52 +245,131 @@ var IC={
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>'
 };
 
+/* ---------- 環境偵測 ---------- */
+var UA=navigator.userAgent||"";
+var isIOS=/iPhone|iPad|iPod/.test(UA)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+var inApp=/Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|KAKAOTALK/i.test(UA);
+var standalone=window.navigator.standalone===true||(window.matchMedia&&matchMedia("(display-mode: standalone)").matches);
+var iosOther=isIOS&&/CriOS|FxiOS|EdgiOS|OPiOS/.test(UA);
+function envWarning(){
+  if(inApp)return"你正在 LINE／Facebook 等 App 的內建瀏覽器裡開啟，麥克風和朗讀多半無法使用。請點右上角「⋯」選單，選「用 Safari 開啟」。";
+  if(iosOther)return"iPhone 上請用 Safari 開啟這個網址，Chrome、Firefox 在 iPhone 上無法使用語音辨識。";
+  if(isIOS&&standalone)return"你是從主畫面圖示開啟的，這個模式下 iPhone 的語音辨識可能無法使用。若一直辨識失敗，請改用 Safari 直接開網址。";
+  if(!(window.SpeechRecognition||window.webkitSpeechRecognition))return"這個瀏覽器不支援語音辨識。iPhone 請用 Safari，Android 請用 Chrome。";
+  return"";
+}
+function envBannerHTML(){var w=envWarning();return w?'<div class="envwarn"><b>注意</b>'+esc(w)+'</div>':'';}
+
 /* ---------- 語音合成（朗讀） ---------- */
 var synth=window.speechSynthesis,voices=[];
-function loadVoices(){if(!synth)return;voices=synth.getVoices().filter(function(v){return/^en[-_]US/i.test(v.lang);});}
-if(synth){loadVoices();synth.onvoiceschanged=loadVoices;}
+function loadVoices(){if(!synth)return;voices=synth.getVoices().filter(function(v){return/^en[-_]US/i.test(v.lang)&&!/Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Deranged|Hysterical|Pipe|Princess|Junior|Ralph/i.test(v.name);});}
+if(synth){loadVoices();if(synth.addEventListener)synth.addEventListener("voiceschanged",loadVoices);else synth.onvoiceschanged=loadVoices;}
 function pickVoice(pref,alt){
   if(!voices.length)loadVoices();
+  if(!voices.length)return null;
   var v=voices.find(function(x){return x.name===pref;});if(v)return v;
   var good=["Samantha","Google US English","Ava","Allison","Microsoft Aria","Alex","Fred","Nicky","Aaron"];
   var list=voices.slice().sort(function(a,b){var ia=good.findIndex(function(g){return a.name.indexOf(g)>=0;}),ib=good.findIndex(function(g){return b.name.indexOf(g)>=0;});return(ia<0?99:ia)-(ib<0?99:ib);});
   return alt?(list[1]||list[0]):list[0];
 }
+var speakSeq=0;
 function speak(text,opt){
   opt=opt||{};
   return new Promise(function(res){
     if(!synth){toast("這個瀏覽器不支援朗讀");return res();}
-    synth.cancel();
-    var u=new SpeechSynthesisUtterance(fill(text));
-    u.lang="en-US";u.rate=opt.slow?Math.max(.5,S.rate-.3):S.rate;
-    var v=opt.b?pickVoice(S.voiceB,true):pickVoice(S.voiceA,false);if(v)u.voice=v;
-    u.onend=u.onerror=function(){res();};
-    synth.speak(u);
+    var my=++speakSeq,done=false,started=false;
+    function fin(){if(!done){done=true;res();}}
+    function go(){
+      if(my!==speakSeq)return fin();
+      var u=new SpeechSynthesisUtterance(fill(text));
+      u.lang="en-US";u.rate=opt.slow?Math.max(.5,S.rate-.3):S.rate;u.volume=1;
+      var v=opt.b?pickVoice(S.voiceB,true):pickVoice(S.voiceA,false);if(v)u.voice=v;
+      u.onstart=function(){started=true;};
+      u.onend=fin;
+      u.onerror=function(e){var c=e&&e.error;if(c&&c!=="interrupted"&&c!=="canceled")toast("朗讀失敗（"+c+"），請重新整理頁面再試");fin();};
+      synth.speak(u);
+      try{if(synth.paused)synth.resume();}catch(e){}
+      setTimeout(function(){if(!started&&!done&&my===speakSeq){toast("沒有聲音？請檢查 iPhone 側邊的靜音開關和音量；剛用過麥克風的話，聲音可能從聽筒出來。");fin();}},3000);
+      setTimeout(fin,20000+String(text).length*200);
+    }
+    // iPhone Safari：cancel() 後立刻 speak() 會被丟掉，所以只在正在播放時才取消，並稍等一下
+    if(synth.speaking||synth.pending){synth.cancel();setTimeout(go,150);}else go();
   });
 }
+function hush(){if(synth&&(synth.speaking||synth.pending)){speakSeq++;synth.cancel();}}
 
 /* ---------- 語音辨識 ---------- */
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 var recog=null;
+var SR_ERR={
+  "not-allowed":"麥克風權限被拒絕。iPhone：設定 → Safari → 麥克風 → 允許；也要到 設定 → Siri 開啟 Siri。",
+  "service-not-allowed":"語音辨識服務被關閉。iPhone：設定 → Siri 開啟，並在 設定 → 一般 → 鍵盤 開啟「聽寫」。",
+  "audio-capture":"抓不到麥克風，可能被其他 App（通話、錄音）占用，關掉後再試。",
+  "network":"語音辨識需要網路，請確認網路連線。",
+  "language-not-supported":"手機不支援英文辨識。iPhone：設定 → 一般 → 鍵盤 → 鍵盤 → 加入「英文（美國）」。",
+  "bad-grammar":"語音辨識設定錯誤，請重新整理頁面。"
+};
+function srErrMsg(c){return SR_ERR[c]||("語音辨識出錯（"+c+"），請重新整理頁面再試，或到設定做語音診斷。");}
 function listen(onInterim){
   return new Promise(function(res,rej){
     if(!SR)return rej("unsupported");
-    if(synth)synth.cancel();
+    hush();
     var r=new SR();recog=r;
-    r.lang="en-US";r.interimResults=true;r.maxAlternatives=3;r.continuous=false;
-    var finals=[],last="";
+    r.lang="en-US";r.interimResults=true;r.maxAlternatives=isIOS?1:3;r.continuous=false;
+    var finals=[],last="",settled=false,heardAny=false;
+    var guard=setTimeout(function(){try{r.stop();}catch(e){}},12000);
+    function ok(v){if(!settled){settled=true;clearTimeout(guard);recog=null;res(v);}}
+    function bad(c){if(!settled){settled=true;clearTimeout(guard);recog=null;rej(c);}}
     r.onresult=function(e){
+      heardAny=true;
       var res0=e.results[e.results.length-1];
       last=res0[0].transcript;
       if(onInterim)onInterim(last);
       if(res0.isFinal){finals=[];for(var i=0;i<res0.length;i++)finals.push(res0[i].transcript);}
     };
-    r.onerror=function(e){recog=null;if(e.error==="no-speech"||e.error==="aborted")res([]);else rej(e.error);};
-    r.onend=function(){recog=null;res(finals.length?finals:(last?[last]:[]));};
-    try{r.start();}catch(err){rej(err.message);}
+    r.onerror=function(e){if(e.error==="no-speech"||e.error==="aborted")ok([]);else bad(e.error);};
+    r.onend=function(){ok(finals.length?finals:(last?[last]:[]));};
+    try{r.start();}catch(err){bad(err&&err.message||"start-failed");}
   });
 }
 function stopListen(){if(recog)try{recog.stop();}catch(e){}}
+
+/* ---------- 語音診斷 ---------- */
+function runDiag(kind,log){
+  function w(s){log.textContent+=s+"\n";}
+  if(kind==="tts"){
+    if(!synth){w("✗ 這個瀏覽器沒有朗讀功能");return;}
+    loadVoices();w("美式英文聲音數量："+voices.length+(voices.length?"（"+voices.slice(0,3).map(function(v){return v.name;}).join("、")+"…）":""));
+    w("開始朗讀：Hello, can you hear me?");
+    var u=new SpeechSynthesisUtterance("Hello, can you hear me?");u.lang="en-US";var v=pickVoice(S.voiceA);if(v)u.voice=v;
+    var t0=Date.now(),st=false;
+    u.onstart=function(){st=true;w("✓ 開始播放（"+(Date.now()-t0)+" ms）");};
+    u.onend=function(){w("✓ 播放結束。有聽到聲音就代表朗讀正常。");};
+    u.onerror=function(e){w("✗ 朗讀錯誤："+e.error);};
+    if(synth.speaking||synth.pending){synth.cancel();setTimeout(function(){synth.speak(u);},150);}else synth.speak(u);
+    setTimeout(function(){if(!st)w("✗ 3 秒內沒有開始播放。請檢查靜音開關、音量，或重新整理頁面。");},3000);
+    return;
+  }
+  if(kind==="sr"){
+    if(!SR){w("✗ 這個瀏覽器沒有語音辨識功能");return;}
+    hush();
+    var r=new SR();r.lang="en-US";r.interimResults=true;r.maxAlternatives=1;r.continuous=false;
+    w("請在 1 秒內說：Hello, how are you?");
+    ["start","audiostart","soundstart","speechstart","speechend","audioend"].forEach(function(n){r["on"+n]=function(){w("· "+n);};});
+    r.onresult=function(e){var x=e.results[e.results.length-1];w((x.isFinal?"✓ 最終結果：":"… 即時結果：")+x[0].transcript);};
+    r.onerror=function(e){w("✗ 錯誤："+e.error+"\n  → "+srErrMsg(e.error));};
+    r.onnomatch=function(){w("✗ 有聲音但無法辨識成英文");};
+    r.onend=function(){w("· end（結束）");};
+    try{r.start();}catch(err){w("✗ 無法啟動："+(err&&err.message));}
+    setTimeout(function(){try{r.stop();}catch(e){}},10000);
+    return;
+  }
+  w("瀏覽器："+(inApp?"App 內建瀏覽器":iosOther?"iPhone 上的非 Safari 瀏覽器":isIOS?"iPhone／iPad Safari":/Android/.test(UA)?"Android":"電腦"));
+  w("從主畫面開啟："+(standalone?"是":"否"));
+  w("HTTPS："+(location.protocol==="https:"||location.hostname==="localhost"?"是":"否"));
+  w("語音辨識："+(SR?"有":"沒有")+"　朗讀："+(synth?"有":"沒有")+"　錄音："+(canRecord()?"有":"沒有"));
+  w("UA："+UA);
+}
 
 /* ---------- 比對評分 ---------- */
 var ONES=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
@@ -480,6 +562,7 @@ function renderHome(){
   stopAll();
   var nd=nextDay(),info=dayInfo(nd),mon=MONTHS[info.m],allDone=doneCount()>=365;
   var h='<div class="top"><div class="brand">開口<b>365</b></div><button class="iconbtn" id="gear" aria-label="設定">'+IC.gear+'</button></div>';
+  h+=envBannerHTML();
   h+='<section class="today" aria-label="今天的練習">';
   h+='<div class="wave" aria-hidden="true">'+[18,34,52,28,44,22,36,14].map(function(x){return'<i style="height:'+x+'px"></i>';}).join("")+'</div>';
   h+='<div class="eyebrow">'+(allDone?"全部完成":"下一堂")+' · 第 '+(info.m+1)+' 個月「'+esc(mon.t)+'」</div>';
@@ -558,7 +641,7 @@ function buildItems(info){
 
 /* ---------- 練習流程 ---------- */
 var L=null;
-function stopAll(){stopListen();if(longStop)longStop();if(synth)synth.cancel();if(mediaRec)stopRec();if(L&&L.timer){clearInterval(L.timer);L.timer=null;}}
+function stopAll(){stopListen();if(longStop)longStop();hush();if(mediaRec)stopRec();if(L&&L.timer){clearInterval(L.timer);L.timer=null;}}
 function openLesson(d){
   stopAll();
   var info=dayInfo(d);
@@ -578,7 +661,7 @@ function renderItem(){
   var info=L.info,it=curItem(),st=L.state[L.i]||(L.state[L.i]={});
   var pct=Math.round(100*L.i/L.items.length);
   var h='<div class="lesson-top"><button class="iconbtn" id="back" aria-label="回首頁">'+IC.back+'</button><div class="bar"><i style="width:'+pct+'%"></i></div><span class="muted" style="font-size:13px;font-variant-numeric:tabular-nums">'+(L.i+1)+'/'+L.items.length+'</span></div>';
-  h+='<div class="lesson-title"><div class="eyebrow">'+(info.d?'Day '+info.d+' · ':'')+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2></div>';
+  h+='<div class="lesson-title"><div class="eyebrow">'+(info.d?'Day '+info.d+' · ':'')+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2></div>'+envBannerHTML();
   h+='<div class="card" id="card">'+cardHTML(it,st)+'</div>';
   if(it.k!=="free"&&it.k!=="dialog")h+='<p class="tip" style="margin-top:12px">按橘色麥克風開始說，說完會自動停止並評分。綠色是說對的字，紅色是要加強的字，下方會有發音建議。</p>';
   $app.innerHTML=h;
@@ -644,7 +727,7 @@ function targetOf(it){return it.k==="role"?it.b[1]:it.en;}
 function zhOf(it){return it.k==="role"?it.b[2]:it.zh;}
 function bindCard(it,st){
   var c=document.getElementById("card");
-  c.querySelectorAll("[data-say]").forEach(function(b){b.onclick=function(){speak(targetOf(it),{slow:b.dataset.say==="s",b:it.k==="role"||it.who==="你"});};});
+  c.querySelectorAll("[data-say]").forEach(function(b){b.onclick=function(){b.classList.add("on");speak(targetOf(it),{slow:b.dataset.say==="s",b:it.k==="role"||it.who==="你"}).then(function(){b.classList.remove("on");});};});
   var rv=document.getElementById("reveal");if(rv)rv.onclick=function(){st.reveal=true;renderItem();};
   var sa=document.getElementById("sayA");if(sa)sa.onclick=function(){speak(it.a[1]);};
   var rec=c.querySelector("[data-rec]");
@@ -656,7 +739,7 @@ function bindCard(it,st){
   if(it.k==="dialog"){
     var playing=false;
     var playAll=function(slow){
-      if(playing){playing=false;if(synth)synth.cancel();return;}
+      if(playing){playing=false;hush();return;}
       playing=true;var i=0;
       (function next(){
         c.querySelectorAll(".line").forEach(function(el){el.classList.remove("now");});
@@ -669,7 +752,7 @@ function bindCard(it,st){
     document.getElementById("playslow").onclick=function(){playAll(true);};
   }
   if(it.k==="free")c.querySelectorAll("[data-star]").forEach(function(b){b.onclick=function(){st.stars=+b.dataset.star;renderItem();};});
-  if(it.k==="role"&&!st.autoplayed){st.autoplayed=true;setTimeout(function(){speak(it.a[1]);},300);}
+  if(it.k==="role"&&!st.autoplayed){st.autoplayed=true;speak(it.a[1]);}
 }
 function renderDock(it,st){
   var last=L.i===L.items.length-1;
@@ -698,7 +781,7 @@ function renderDock(it,st){
       L.timer=setInterval(function(){st.secs++;if(tEl)tEl.textContent=fmt(st.secs);if(st.secs>=180&&longStop)longStop();},1000);
       startLong(function(t){st.text=t;live.textContent=t||"正在聽…";},function(text,err){
         clearInterval(L.timer);L.timer=null;
-        if(err){toast("麥克風或語音辨識被拒絕，請到瀏覽器設定允許（iPhone 需開啟 Siri 與聽寫）");}
+        if(err){toast(srErrMsg(err));}
         st.text=text||st.text||"";
         st.analysis=freeAnalyze(st.text,st.secs,it.hints);
         renderItem();
@@ -714,6 +797,7 @@ function renderDock(it,st){
     var res=document.getElementById("res");
     res.innerHTML='<div class="heard">正在聽… <b id="interim"></b></div>';
     listen(function(t){var el=document.getElementById("interim");if(el)el.textContent=t;}).then(function(alts){
+      if(!alts.length)toast("沒有聽到聲音。按下麥克風後等半秒再開口；若一直這樣，請到設定做語音診斷。");
       var target=targetOf(it),best=bestOf(target,alts.length?alts:[""]);
       st.tries=(st.tries||0)+1;st.lastScore=best.score;
       if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;st.heard=best.heard;st.tips=tipsFor(target,best);}
@@ -722,7 +806,7 @@ function renderDock(it,st){
     }).catch(function(err){
       mic.classList.remove("live");mic.innerHTML=IC.mic;
       res.innerHTML="";
-      toast(err==="not-allowed"||err==="service-not-allowed"?"麥克風或語音辨識被拒絕，請到瀏覽器設定允許（iPhone 需開啟 Siri 與聽寫）":"語音辨識出錯："+err);
+      toast(err==="unsupported"?envWarning()||"這個瀏覽器不支援語音辨識":srErrMsg(err));
     });
   };
 }
@@ -778,7 +862,9 @@ function renderSettings(){
   h+='<div class="sec-h"><h3>備份進度</h3></div><p class="tip" style="margin-top:0">進度只存在這支手機的瀏覽器裡。換手機或清除瀏覽資料前，先複製備份碼存起來。</p>';
   h+='<div class="field"><textarea id="bk" aria-label="備份碼">'+esc(JSON.stringify({v:2,name:S.name,done:S.done,mist:S.mist||{},wlog:S.wlog||{}}))+'</textarea></div>';
   h+='<div class="row" style="margin-bottom:24px"><button class="pill" id="copy">複製備份碼</button><button class="pill" id="restore">用上面的備份碼還原</button></div>';
-  h+='<div class="note"><b>語音辨識小提醒</b><br>iPhone：請用 Safari，並在「設定 → Siri」開啟 Siri、在「鍵盤」開啟聽寫。<br>Android：用 Chrome。第一次使用會詢問麥克風權限，請選允許。<br>目前狀態：語音辨識 '+(SR?"✅ 可用":"❌ 不支援")+'、朗讀 '+(synth?"✅ 可用":"❌ 不支援")+'、錄音 '+(canRecord()?"✅ 可用":"❌ 不支援")+'</div>';
+  h+='<div class="sec-h"><h3>語音診斷</h3></div><p class="tip" style="margin-top:0">麥克風或朗讀不能用時，依序按下面三個按鈕，把結果截圖給我。</p>';
+  h+='<div class="row" style="margin-bottom:10px"><button class="pill" id="dEnv">1. 環境檢查</button><button class="pill" id="dTts">2. 測試朗讀</button><button class="pill" id="dSr">3. 測試辨識</button></div><pre class="diaglog" id="dLog">'+esc(envWarning()||"按上面的按鈕開始檢查")+'</pre>';
+  h+='<div class="note"><b>iPhone 必要設定</b><br>1. 用 <b>Safari</b> 開啟網址（不要用 LINE 裡的瀏覽器或 Chrome）<br>2. 設定 → Siri：開啟 Siri<br>3. 設定 → 一般 → 鍵盤：開啟「聽寫」，並在「鍵盤」裡加入「英文（美國）」<br>4. 設定 → Safari → 麥克風：允許<br>5. 側邊靜音開關打開時，朗讀會沒有聲音</div>';
   h+='<div style="margin-top:24px"><button class="pill" id="reset" style="color:var(--bad)">清除所有進度</button></div>';
   $app.innerHTML=h;$dock.innerHTML="";
   document.getElementById("back").onclick=renderHome;
@@ -786,6 +872,10 @@ function renderSettings(){
   document.getElementById("rt").oninput=function(e){S.rate=+e.target.value;document.getElementById("rtv").textContent=S.rate.toFixed(2);save();};
   document.getElementById("va").onchange=function(e){S.voiceA=e.target.value;save();};
   document.getElementById("vb").onchange=function(e){S.voiceB=e.target.value;save();};
+  var dl=document.getElementById("dLog");
+  document.getElementById("dEnv").onclick=function(){dl.textContent="";runDiag("env",dl);};
+  document.getElementById("dTts").onclick=function(){dl.textContent="";runDiag("tts",dl);};
+  document.getElementById("dSr").onclick=function(){dl.textContent="";runDiag("sr",dl);};
   document.getElementById("test").onclick=function(){speak("Hi, I'm your speaking partner. Let's practice together!");};
   document.getElementById("copy").onclick=function(){var t=document.getElementById("bk");var ok=function(){toast("已複製備份碼");};if(navigator.clipboard)navigator.clipboard.writeText(t.value).then(ok,function(){t.select();toast("請長按選取後複製");});else{t.select();toast("請長按選取後複製");}};
   document.getElementById("restore").onclick=function(){try{var o=JSON.parse(document.getElementById("bk").value);if(!o.done)throw 0;S.done=o.done;if(o.name)S.name=o.name;if(o.mist)S.mist=o.mist;if(o.wlog)S.wlog=o.wlog;save();toast("已還原 "+Object.keys(S.done).length+" 天的進度");}catch(e){toast("備份碼格式不對，請重新貼上完整內容");}};
