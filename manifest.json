@@ -1,0 +1,11 @@
+{
+  "name": "開口 365",
+  "short_name": "開口365",
+  "description": "365 天英文口說練習：跟讀、語音辨識評分、情境角色扮演、錄音自評",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F5FA",
+  "theme_color": "#14213D",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14213D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="開口365">
+<title>開口 365</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: 單欄手機卡片流；首頁＝今日任務＋365 格進度牆，練習頁＝一次一張卡＋底部固定操作列 */
+:root{
+  --bg:#F3F5FA; --surface:#FFFFFF; --ink:#14213D; --muted:#5D6785; --line:#DCE1EE;
+  --accent:#2F5BEA; --accent-ink:#FFFFFF; --voice:#FF8A3D; --voice-soft:#FFE8D8;
+  --good:#1E9E6A; --good-soft:#DDF4EA; --bad:#D9433B; --bad-soft:#FBE3E1; --cell:#E4E8F2;
+  --f-display:"Bricolage Grotesque","Noto Sans TC",system-ui,sans-serif;
+  --f-body:"Noto Sans TC",-apple-system,"PingFang TC",system-ui,sans-serif;
+  --r:16px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E1424; --surface:#172036; --ink:#EAF0FF; --muted:#9AA6C6; --line:#2A3654;
+  --accent:#6E8DFF; --accent-ink:#0E1424; --voice:#FF9C5B; --voice-soft:#3A2618;
+  --good:#3CCB8F; --good-soft:#163527; --bad:#FF6F66; --bad-soft:#3A1C1B; --cell:#222D47; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1424; --surface:#172036; --ink:#EAF0FF; --muted:#9AA6C6; --line:#2A3654;
+  --accent:#6E8DFF; --accent-ink:#0E1424; --voice:#FF9C5B; --voice-soft:#3A2618;
+  --good:#3CCB8F; --good-soft:#163527; --bad:#FF6F66; --bad-soft:#3A1C1B; --cell:#222D47; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(env(safe-area-inset-top,0px) + 16px) 120px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.muted{color:var(--muted)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+/* 頂部 */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand{font-family:var(--f-display);font-weight:800;font-size:22px;display:flex;align-items:baseline;gap:6px}
+.brand b{color:var(--voice)}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line)}
+.iconbtn svg{width:22px;height:22px}
+
+/* 今日卡 */
+.today{background:var(--ink);color:var(--bg);border-radius:22px;padding:22px 20px 20px;display:grid;gap:14px;position:relative;overflow:hidden}
+.today .eyebrow{color:color-mix(in srgb,var(--bg) 70%,transparent)}
+.daynum{font-family:var(--f-display);font-weight:800;font-size:56px;line-height:.9;letter-spacing:-.03em}
+.daynum small{font-size:18px;font-weight:500;opacity:.6;letter-spacing:0}
+.today h2{font-size:22px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12.5px;padding:4px 10px;border-radius:99px;background:color-mix(in srgb,var(--bg) 14%,transparent);font-weight:500}
+.chip.v{background:var(--voice);color:#1d1206}
+.wave{position:absolute;right:14px;top:52px;display:flex;gap:4px;align-items:center;height:60px;opacity:.9}
+.wave i{display:block;width:6px;border-radius:3px;background:var(--voice)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 22px;border-radius:14px;font-weight:700;font-size:17px}
+.btn svg{width:22px;height:22px;flex:none}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.today .btn.primary{background:var(--voice);color:#1d1206}
+.btn.ghost{background:var(--surface);border:1px solid var(--line)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 26px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+.stat b{display:block;font-family:var(--f-display);font-size:24px;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:12.5px;color:var(--muted)}
+
+/* 進度牆 */
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 10px}
+.sec-h h3{font-size:19px}
+.months{display:grid;gap:10px}
+.month{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 12px 14px}
+.month-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.month-h strong{font-size:15px}
+.month-h span{font-size:12px;color:var(--muted);white-space:nowrap}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cell{aspect-ratio:1;border-radius:6px;background:var(--cell);font-size:10.5px;display:grid;place-items:center;color:var(--muted);font-variant-numeric:tabular-nums;max-width:100%}
+.cell.done{background:var(--good);color:#fff}
+.cell.done.lo{background:color-mix(in srgb,var(--good) 55%,var(--cell))}
+.cell.next{outline:2px solid var(--voice);outline-offset:1px;color:var(--ink);font-weight:700}
+.cell.grad{background:var(--voice-soft);color:var(--voice);font-weight:800}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* 練習頁 */
+.lesson-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.bar{flex:1;height:8px;background:var(--cell);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--voice);border-radius:99px;transition:width .3s}
+.lesson-title{margin-bottom:14px}
+.lesson-title h2{font-size:21px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px;display:grid;gap:14px}
+.who{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)}
+.en{font-family:var(--f-display);font-size:25px;font-weight:700;line-height:1.3;letter-spacing:-.01em;word-break:break-word}
+.zh{font-size:16px;color:var(--muted)}
+.zh.big{font-size:21px;color:var(--ink);font-weight:500}
+.hidden-en{border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:14px}
+.w{border-radius:5px;padding:0 2px;transition:background .2s}
+.w.ok{background:var(--good-soft);color:var(--good)}
+.w.miss{background:var(--bad-soft);color:var(--bad);text-decoration:underline wavy;text-underline-offset:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 14px;border-radius:99px;background:var(--bg);border:1px solid var(--line);font-size:14.5px;font-weight:500}
+.pill svg{width:18px;height:18px}
+.pill.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.heard{background:var(--bg);border-radius:12px;padding:10px 12px;font-size:14.5px}
+.heard b{font-weight:500}
+.score{display:flex;align-items:center;gap:12px}
+.score .num{font-family:var(--f-display);font-weight:800;font-size:34px;font-variant-numeric:tabular-nums;line-height:1}
+.score.good .num{color:var(--good)} .score.mid .num{color:var(--voice)} .score.low .num{color:var(--bad)}
+.tip{font-size:13.5px;color:var(--muted)}
+.dialog{display:grid;gap:8px}
+.line{display:grid;gap:2px;padding:10px 12px;border-radius:12px;background:var(--bg);border:1px solid transparent}
+.line.B{background:var(--voice-soft)}
+.line.now{border-color:var(--accent)}
+.line .en{font-size:17px}
+.line .zh{font-size:13.5px}
+.scene{font-size:14px;color:var(--muted)}
+
+/* 底部固定列 */
+.dock{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));z-index:5}
+.dock-in{max-width:560px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.mic{width:72px;height:72px;flex:none;border-radius:50%;background:var(--voice);color:#1d1206;display:grid;place-items:center;box-shadow:0 6px 18px color-mix(in srgb,var(--voice) 40%,transparent);position:relative}
+.mic svg{width:30px;height:30px}
+.mic.live{animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--voice) 55%,transparent)}100%{box-shadow:0 0 0 18px transparent}}
+.dock .btn{flex:1}
+.dock-label{font-size:12px;color:var(--muted);text-align:center;margin-top:4px}
+
+/* 自評 */
+.stars{display:flex;gap:6px}
+.stars button{font-size:32px;line-height:1;color:var(--cell)}
+.stars button.on{color:var(--voice)}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:15px}
+.check input{width:20px;height:20px;margin-top:3px;accent-color:var(--accent)}
+.timer{font-family:var(--f-display);font-size:40px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* 設定 */
+.field{display:grid;gap:6px;margin-bottom:16px}
+.field label{font-weight:700;font-size:14px}
+.field input,.field select,.field textarea{font:inherit;font-size:16px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:100%}
+.field textarea{min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.note{background:var(--voice-soft);border-radius:14px;padding:12px 14px;font-size:14px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:9;max-width:calc(100% - 32px)}
+.summary{text-align:center;display:grid;gap:12px;justify-items:center;padding:12px 0}
+.big-score{font-family:var(--f-display);font-weight:800;font-size:72px;line-height:1;color:var(--voice)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="dock"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="data1.js"></script>
+<script src="data2.js"></script>
+<script>
+(function(){
+"use strict";
+/* ---------- 課程結構 ---------- */
+var WEEKS_PER_MONTH=[4,4,5,4,4,5,4,4,5,4,4,5];
+var DAY_TYPES=[
+  {k:"learn",n:"新句子 A",d:"學 4 個新句子，聽 → 跟讀 → 看分數"},
+  {k:"learn",n:"新句子 B",d:"再學 4 個新句子"},
+  {k:"recall",n:"中翻英挑戰",d:"看中文，直接用英文說出來"},
+  {k:"listen",n:"情境對話・聽與跟讀",d:"聽完整對話，逐句跟讀"},
+  {k:"roleplay",n:"角色扮演",d:"App 演對方，你接話"},
+  {k:"free",n:"自由開口",d:"錄下一段自己的話，回放自評"},
+  {k:"review",n:"週複習",d:"本週＋之前學過的句子混合挑戰"}
+];
+function weekMonth(w){var s=0;for(var i=0;i<12;i++){s+=WEEKS_PER_MONTH[i];if(w<s)return i;}return 11;}
+function monthRange(m){var s=0;for(var i=0;i<m;i++)s+=WEEKS_PER_MONTH[i];var a=s*7+1,b=(s+WEEKS_PER_MONTH[m])*7;if(m===11)b=365;return[a,b];}
+function dayInfo(d){
+  if(d===365)return{d:d,w:51,m:11,type:{k:"grad",n:"畢業日",d:"全年總複習＋畢業演講"},week:WEEKS[51]};
+  var w=Math.floor((d-1)/7),t=(d-1)%7;
+  return{d:d,w:w,m:weekMonth(w),t:t,type:DAY_TYPES[t],week:WEEKS[w]};
+}
+
+/* ---------- 儲存 ---------- */
+var KEY="speak365.v1";
+var S={name:"Miles",rate:0.95,voiceA:"",voiceB:"",done:{}};
+try{var raw=localStorage.getItem(KEY);if(raw)Object.assign(S,JSON.parse(raw));}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function fill(s){return s.replace(/\{name\}/g,S.name||"Alex");}
+function todayStr(dt){dt=dt||new Date();return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");}
+function nextDay(){for(var d=1;d<=365;d++)if(!S.done[d])return d;return 365;}
+function doneCount(){return Object.keys(S.done).length;}
+function streak(){
+  var dates={};Object.keys(S.done).forEach(function(k){dates[S.done[k].date]=1;});
+  var n=0,dt=new Date();
+  if(!dates[todayStr(dt)])dt.setDate(dt.getDate()-1);
+  while(dates[todayStr(dt)]){n++;dt.setDate(dt.getDate()-1);}
+  return n;
+}
+function avgScore(){var k=Object.keys(S.done);if(!k.length)return 0;var s=0;k.forEach(function(x){s+=S.done[x].score||0;});return Math.round(s/k.length);}
+
+/* ---------- 工具 ---------- */
+var $app=document.getElementById("app"),$dock=document.getElementById("dock");
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(function(){t.hidden=true;},2600);}
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function shuffle(a,r){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(r()*(i+1));var x=a[i];a[i]=a[j];a[j]=x;}return a;}
+var IC={
+  mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  stop:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
+  play:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+  slow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>',
+  rec:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>',
+  replay:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>'
+};
+
+/* ---------- 語音合成（朗讀） ---------- */
+var synth=window.speechSynthesis,voices=[];
+function loadVoices(){if(!synth)return;voices=synth.getVoices().filter(function(v){return/^en[-_]US/i.test(v.lang);});}
+if(synth){loadVoices();synth.onvoiceschanged=loadVoices;}
+function pickVoice(pref,alt){
+  if(!voices.length)loadVoices();
+  var v=voices.find(function(x){return x.name===pref;});if(v)return v;
+  var good=["Samantha","Google US English","Ava","Allison","Microsoft Aria","Alex","Fred","Nicky","Aaron"];
+  var list=voices.slice().sort(function(a,b){var ia=good.findIndex(function(g){return a.name.indexOf(g)>=0;}),ib=good.findIndex(function(g){return b.name.indexOf(g)>=0;});return(ia<0?99:ia)-(ib<0?99:ib);});
+  return alt?(list[1]||list[0]):list[0];
+}
+function speak(text,opt){
+  opt=opt||{};
+  return new Promise(function(res){
+    if(!synth){toast("這個瀏覽器不支援朗讀");return res();}
+    synth.cancel();
+    var u=new SpeechSynthesisUtterance(fill(text));
+    u.lang="en-US";u.rate=opt.slow?Math.max(.5,S.rate-.3):S.rate;
+    var v=opt.b?pickVoice(S.voiceB,true):pickVoice(S.voiceA,false);if(v)u.voice=v;
+    u.onend=u.onerror=function(){res();};
+    synth.speak(u);
+  });
+}
+
+/* ---------- 語音辨識 ---------- */
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+var recog=null;
+function listen(onInterim){
+  return new Promise(function(res,rej){
+    if(!SR)return rej("unsupported");
+    if(synth)synth.cancel();
+    var r=new SR();recog=r;
+    r.lang="en-US";r.interimResults=true;r.maxAlternatives=3;r.continuous=false;
+    var finals=[],last="";
+    r.onresult=function(e){
+      var res0=e.results[e.results.length-1];
+      last=res0[0].transcript;
+      if(onInterim)onInterim(last);
+      if(res0.isFinal){finals=[];for(var i=0;i<res0.length;i++)finals.push(res0[i].transcript);}
+    };
+    r.onerror=function(e){recog=null;if(e.error==="no-speech"||e.error==="aborted")res([]);else rej(e.error);};
+    r.onend=function(){recog=null;res(finals.length?finals:(last?[last]:[]));};
+    try{r.start();}catch(err){rej(err.message);}
+  });
+}
+function stopListen(){if(recog)try{recog.stop();}catch(e){}}
+
+/* ---------- 比對評分 ---------- */
+var ONES=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+var TENS=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+function nw(n){n=+n;if(n<20)return ONES[n];if(n<100)return TENS[Math.floor(n/10)]+(n%10?" "+ONES[n%10]:"");if(n<1000)return ONES[Math.floor(n/100)]+" hundred"+(n%100?" "+nw(n%100):"");if(n<10000)return nw(Math.floor(n/1000))+" thousand"+(n%1000?" "+nw(n%1000):"");return String(n);}
+var ORD={1:"first",2:"second",3:"third",4:"fourth",5:"fifth",6:"sixth",7:"seventh",8:"eighth",9:"ninth",10:"tenth",11:"eleventh",12:"twelfth",13:"thirteenth",14:"fourteenth",15:"fifteenth",16:"sixteenth",17:"seventeenth",18:"eighteenth",19:"nineteenth",20:"twentieth",21:"twenty first",22:"twenty second",23:"twenty third",30:"thirtieth",31:"thirty first"};
+var HOMO={two:"to",too:"to",four:"for",their:"there","they're":"there",theyre:"there",write:"right",buy:"by",bye:"by",sea:"see",eye:"i",hear:"here",ok:"okay",alright:"all right",cause:"because",gonna:"going to",wanna:"want to"};
+function norm(s){
+  s=fill(s).toLowerCase();
+  s=s.replace(/\$(\d+)/g,"$1 dollars");
+  s=s.replace(/(\d{1,2}):00/g,"$1 oclock").replace(/(\d{1,2}):(\d{2})/g,"$1 $2");
+  s=s.replace(/(\d+)(st|nd|rd|th)\b/g,function(m,n){return ORD[n]||nw(n);});
+  s=s.replace(/\bp\.?m\.?/g,"pm").replace(/\ba\.?m\.?/g,"am").replace(/%/g," percent");
+  s=s.replace(/o['’]clock/g,"oclock").replace(/['’]/g,"").replace(/[-–—/]/g," ");
+  s=s.replace(/\d+/g,function(n){return " "+((n.length>1&&n[0]==="0")||n.length>=5?n.split("").map(nw).join(" "):nw(n))+" ";});
+  s=s.replace(/[^a-z\s]/g," ");
+  var out=[];s.split(/\s+/).forEach(function(w){if(!w)return;var h=HOMO[w];if(h)h.split(" ").forEach(function(x){out.push(x);});else out.push(w);});
+  return out;
+}
+function lev(a,b){if(a===b)return 0;var m=a.length,n=b.length,d=[];for(var i=0;i<=m;i++){d[i]=[i];}for(var j=0;j<=n;j++)d[0][j]=j;for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n];}
+function same(a,b){return a===b||(a.length>=4&&b.length>=4&&lev(a,b)<=1)||(a+"s"===b)||(b+"s"===a);}
+function compare(target,heard){
+  // 回傳 {score, marks:[{w:原詞, ok:bool}]}
+  var display=fill(target).split(/\s+/);
+  var nameToks=norm(S.name||"");
+  var tokMap=[],tgt=[];
+  display.forEach(function(w,i){norm(w).forEach(function(t){tgt.push(t);tokMap.push(i);});});
+  var h=norm(heard);
+  var m=tgt.length,n=h.length,L=[];
+  for(var i=0;i<=m;i++){L[i]=new Array(n+1).fill(0);}
+  for(i=m-1;i>=0;i--)for(var j=n-1;j>=0;j--)L[i][j]=same(tgt[i],h[j])?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  var hit=new Array(m).fill(false);i=0;j=0;
+  while(i<m&&j<n){if(same(tgt[i],h[j])){hit[i]=true;i++;j++;}else if(L[i+1][j]>=L[i][j+1])i++;else j++;}
+  tgt.forEach(function(t,k){if(nameToks.indexOf(t)>=0)hit[k]=true;});
+  var okCount=hit.filter(Boolean).length;
+  var extra=Math.max(0,n-okCount);
+  var score=m?Math.round(100*okCount/m-Math.min(15,extra*3)):0;
+  score=Math.max(0,Math.min(100,score));
+  var wordOk=display.map(function(){return null;});
+  tokMap.forEach(function(wi,k){wordOk[wi]=(wordOk[wi]===null?true:wordOk[wi])&&hit[k];});
+  return{score:score,marks:display.map(function(w,i){return{w:w,ok:wordOk[i]!==false};})};
+}
+function bestOf(target,alts){var best={score:-1,marks:[],heard:""};alts.forEach(function(a){var r=compare(target,a);if(r.score>best.score){best=r;best.heard=a;}});return best;}
+function scoreClass(s){return s>=85?"good":s>=60?"mid":"low";}
+function scoreWord(s){return s>=95?"太完美了！":s>=85?"很棒，發音清楚！":s>=60?"不錯，紅字再練一次":"再慢一點、清楚一點試試";}
+
+/* ---------- 錄音 ---------- */
+var mediaRec=null,recChunks=[],recStream=null;
+function canRecord(){return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);}
+function startRec(){
+  return navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
+    recStream=st;recChunks=[];
+    var type=["audio/webm","audio/mp4","audio/aac"].find(function(t){return MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t);});
+    mediaRec=type?new MediaRecorder(st,{mimeType:type}):new MediaRecorder(st);
+    mediaRec.ondataavailable=function(e){if(e.data.size)recChunks.push(e.data);};
+    mediaRec.start();
+  });
+}
+function stopRec(){
+  return new Promise(function(res){
+    if(!mediaRec||mediaRec.state==="inactive")return res(null);
+    mediaRec.onstop=function(){var b=new Blob(recChunks,{type:mediaRec.mimeType||"audio/mp4"});recStream.getTracks().forEach(function(t){t.stop();});mediaRec=null;res(URL.createObjectURL(b));};
+    mediaRec.stop();
+  });
+}
+
+/* ---------- 畫面：首頁 ---------- */
+function renderHome(){
+  stopAll();
+  var nd=nextDay(),info=dayInfo(nd),mon=MONTHS[info.m],allDone=doneCount()>=365;
+  var h='<div class="top"><div class="brand">開口<b>365</b></div><button class="iconbtn" id="gear" aria-label="設定">'+IC.gear+'</button></div>';
+  h+='<section class="today" aria-label="今天的練習">';
+  h+='<div class="wave" aria-hidden="true">'+[18,34,52,28,44,22,36,14].map(function(x){return'<i style="height:'+x+'px"></i>';}).join("")+'</div>';
+  h+='<div class="eyebrow">'+(allDone?"全部完成":"下一堂")+' · 第 '+(info.m+1)+' 個月「'+esc(mon.t)+'」</div>';
+  h+='<div class="daynum">Day '+nd+' <small>/ 365</small></div>';
+  h+='<h2>'+esc(info.week.t)+'</h2>';
+  h+='<div class="chips"><span class="chip v">'+esc(info.type.n)+'</span><span class="chip">'+esc(mon.lv)+'</span><span class="chip">約 10–15 分鐘</span></div>';
+  h+='<div class="muted" style="color:inherit;opacity:.75;font-size:14.5px">'+esc(info.type.d)+'</div>';
+  h+='<button class="btn primary block" id="go">'+IC.mic+(allDone?"再練一次畢業日":"開始今天的練習")+'</button>';
+  h+='</section>';
+  h+='<div class="stats"><div class="stat"><b>'+streak()+'</b><span>連續天數</span></div><div class="stat"><b>'+doneCount()+'</b><span>已完成天數</span></div><div class="stat"><b>'+avgScore()+'</b><span>平均分數</span></div></div>';
+  h+='<div class="sec-h"><h3>365 天進度</h3><span class="muted" style="font-size:13px">點任一天都能練</span></div><div class="months">';
+  for(var m=0;m<12;m++){
+    var r=monthRange(m),md=0;for(var d=r[0];d<=r[1];d++)if(S.done[d])md++;
+    var w0=0;for(var i=0;i<m;i++)w0+=WEEKS_PER_MONTH[i];
+    h+='<div class="month"><div class="month-h"><strong>'+(m+1)+'. '+esc(MONTHS[m].t)+'</strong><span>'+esc(MONTHS[m].lv)+' · '+md+'/'+(r[1]-r[0]+1)+'</span></div>';
+    h+='<div class="tip" style="margin:-4px 0 8px">'+WEEKS.slice(w0,w0+WEEKS_PER_MONTH[m]).map(function(x){return esc(x.t);}).join("、")+'</div><div class="grid">';
+    for(d=r[0];d<=r[1];d++){
+      var c="cell";if(S.done[d]){c+=" done";if((S.done[d].score||0)<60)c+=" lo";}if(d===nd&&!allDone)c+=" next";if(d===365&&!S.done[d])c+=" grad";
+      h+='<button class="'+c+'" data-day="'+d+'" aria-label="第 '+d+' 天'+(S.done[d]?"，已完成":"")+'">'+d+'</button>';
+    }
+    h+='</div></div>';
+  }
+  h+='</div><div class="legend"><span><i style="background:var(--good)"></i>完成</span><span><i style="background:color-mix(in srgb,var(--good) 55%,var(--cell))"></i>完成但低於 60 分</span><span><i style="background:var(--cell);outline:2px solid var(--voice)"></i>下一堂</span></div>';
+  $app.innerHTML=h;$dock.innerHTML="";
+  document.getElementById("go").onclick=function(){openLesson(nd);};
+  document.getElementById("gear").onclick=renderSettings;
+  $app.querySelectorAll("[data-day]").forEach(function(b){b.onclick=function(){openLesson(+b.dataset.day);};});
+  window.scrollTo(0,0);
+}
+
+/* ---------- 建立當天的練習卡 ---------- */
+function buildItems(info){
+  var wk=info.week,p=wk.p,items=[],r=rng(info.d*97);
+  switch(info.type.k){
+    case "learn":
+      p.slice(info.t===0?0:4,info.t===0?4:8).forEach(function(x){items.push({k:"shadow",en:x[0],zh:x[1]});});
+      break;
+    case "recall":
+      shuffle(p,r).forEach(function(x){items.push({k:"recall",en:x[0],zh:x[1]});});
+      break;
+    case "listen":
+      items.push({k:"dialog",d:wk.d});
+      wk.d.l.forEach(function(x){items.push({k:"shadow",en:x[1],zh:x[2],who:x[0]==="A"?wk.d.a:"你"});});
+      break;
+    case "roleplay":
+      for(var i=0;i<wk.d.l.length;i+=2)items.push({k:"role",a:wk.d.l[i],b:wk.d.l[i+1],aName:wk.d.a,scene:wk.d.s});
+      break;
+    case "free":
+      items.push({k:"free",prompt:wk.f,hints:p.slice(0,8)});
+      break;
+    case "review":
+      var pool=shuffle(p,r).slice(0,4).map(function(x){return{en:x[0],zh:x[1]};});
+      var past=[];for(var w=0;w<info.w;w++)WEEKS[w].p.forEach(function(x){past.push({en:x[0],zh:x[1]});});
+      if(!past.length)past=shuffle(p,r).slice(4).map(function(x){return{en:x[0],zh:x[1]};});
+      shuffle(past,r).slice(0,4).forEach(function(x){pool.push(x);});
+      shuffle(pool,r).forEach(function(x){items.push({k:"recall",en:x.en,zh:x.zh});});
+      break;
+    case "grad":
+      var all=[];WEEKS.forEach(function(W){W.p.forEach(function(x){all.push(x);});});
+      shuffle(all,r).slice(0,8).forEach(function(x){items.push({k:"recall",en:x[0],zh:x[1]});});
+      items.push({k:"free",prompt:"畢業演講：用兩分鐘說出你這 365 天學英文的故事——一開始怎樣、中間最難的是什麼、現在能做到什麼。",hints:WEEKS[51].p});
+      break;
+  }
+  return items;
+}
+
+/* ---------- 練習流程 ---------- */
+var L=null;
+function stopAll(){stopListen();if(synth)synth.cancel();if(mediaRec)stopRec();if(L&&L.timer){clearInterval(L.timer);L.timer=null;}}
+function openLesson(d){
+  stopAll();
+  var info=dayInfo(d);
+  L={info:info,items:buildItems(info),i:0,scores:[],state:{}};
+  renderItem();
+}
+function curItem(){return L.items[L.i];}
+function renderItem(){
+  stopAll();
+  var info=L.info,it=curItem(),st=L.state[L.i]||(L.state[L.i]={});
+  var pct=Math.round(100*L.i/L.items.length);
+  var h='<div class="lesson-top"><button class="iconbtn" id="back" aria-label="回首頁">'+IC.back+'</button><div class="bar"><i style="width:'+pct+'%"></i></div><span class="muted" style="font-size:13px;font-variant-numeric:tabular-nums">'+(L.i+1)+'/'+L.items.length+'</span></div>';
+  h+='<div class="lesson-title"><div class="eyebrow">Day '+info.d+' · '+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2></div>';
+  h+='<div class="card" id="card">'+cardHTML(it,st)+'</div>';
+  if(it.k!=="free"&&it.k!=="dialog")h+='<p class="tip" style="margin-top:12px">按橘色麥克風開始說，說完會自動停止並評分。綠色是說對的字，紅色是要再加強的字。</p>';
+  $app.innerHTML=h;
+  document.getElementById("back").onclick=renderHome;
+  bindCard(it,st);
+  renderDock(it,st);
+  window.scrollTo(0,0);
+}
+function marksHTML(marks){return marks.map(function(m){return'<span class="w '+(m.ok?"ok":"miss")+'">'+esc(m.w)+'</span>';}).join(" ");}
+function resultHTML(st){
+  if(st.score==null)return"";
+  return'<div class="score '+scoreClass(st.score)+'"><span class="num">'+st.score+'</span><div><div style="font-weight:700">'+scoreWord(st.score)+'</div><div class="tip">第 '+st.tries+' 次嘗試</div></div></div>'+
+    '<div class="heard">辨識到：<b>'+esc(st.heard||"（沒有聽到聲音）")+'</b></div>';
+}
+function audioRow(en,b){
+  return'<div class="row"><button class="pill" data-say="n">'+IC.play+'聽一次</button><button class="pill" data-say="s">'+IC.slow+'慢速</button>'+
+    (canRecord()?'<button class="pill" data-rec>'+IC.rec+'錄音對照</button>':'')+'</div><div id="myrec"></div>';
+}
+function cardHTML(it,st){
+  var h="";
+  if(it.k==="shadow"){
+    if(it.who)h+='<div class="who">'+esc(it.who)+'</div>';
+    h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.en)))+'</div><div class="zh">'+esc(fill(it.zh))+'</div>'+audioRow()+'<div id="res">'+resultHTML(st)+'</div>';
+  }else if(it.k==="recall"){
+    h+='<div class="who">用英文怎麼說？</div><div class="zh big">'+esc(fill(it.zh))+'</div>';
+    if(st.reveal||st.score!=null)h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.en)))+'</div>'+audioRow();
+    else h+='<div class="hidden-en">先試著自己說，再看答案<br><button class="pill" id="reveal" style="margin-top:10px">顯示答案</button></div>';
+    h+='<div id="res">'+resultHTML(st)+'</div>';
+  }else if(it.k==="dialog"){
+    h+='<div class="scene">情境：'+esc(it.d.s)+'　·　你是 <b>B</b>，對方是 <b>'+esc(it.d.a)+'</b></div><div class="dialog">';
+    it.d.l.forEach(function(x,i){h+='<div class="line '+x[0]+'" data-line="'+i+'"><div class="who">'+(x[0]==="A"?esc(it.d.a):"你")+'</div><div class="en">'+esc(fill(x[1]))+'</div><div class="zh">'+esc(fill(x[2]))+'</div></div>';});
+    h+='</div><div class="row"><button class="pill on" id="playall">'+IC.play+'播放整段對話</button><button class="pill" id="playslow">'+IC.slow+'慢速播放</button></div><div class="tip">先完整聽 1–2 次，接下來逐句跟讀。</div>';
+  }else if(it.k==="role"){
+    h+='<div class="scene">情境：'+esc(it.scene)+'</div>';
+    h+='<div class="line A"><div class="who">'+esc(it.aName)+' 說</div><div class="en">'+esc(fill(it.a[1]))+'</div><div class="zh">'+esc(fill(it.a[2]))+'</div></div>';
+    h+='<div class="line B"><div class="who">換你說</div><div class="zh big" style="font-size:18px">'+esc(fill(it.b[2]))+'</div>';
+    if(st.reveal||st.score!=null)h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.b[1])))+'</div>';
+    else h+='<button class="pill" id="reveal" style="justify-self:start;margin-top:6px">看英文提示</button>';
+    h+='</div><div class="row"><button class="pill" id="sayA">'+IC.replay+'再聽一次對方</button>'+(st.reveal||st.score!=null?'<button class="pill" data-say="n">'+IC.play+'聽我的句子</button>':'')+'</div><div id="res">'+resultHTML(st)+'</div>';
+  }else if(it.k==="free"){
+    h+='<div class="who">今天的題目</div><div class="zh big">'+esc(it.prompt)+'</div>';
+    h+='<details><summary class="tip" style="cursor:pointer">可以用到的句子（本週）</summary><ul style="margin:8px 0 0;padding-left:20px;font-size:14.5px">'+it.hints.map(function(x){return'<li>'+esc(fill(x[0]))+' <span class="muted">'+esc(fill(x[1]))+'</span></li>';}).join("")+'</ul></details>';
+    h+='<div style="display:flex;align-items:center;gap:14px"><span class="timer" id="timer">'+fmt(st.secs||0)+'</span><span class="tip">目標：說滿 30–60 秒<br>按下方麥克風開始錄音</span></div>';
+    h+='<div id="myrec">'+(st.url?'<audio controls src="'+st.url+'" style="width:100%"></audio>':'')+'</div>';
+    if(st.url){
+      h+='<div><div style="font-weight:700;margin-bottom:6px">聽完自己的錄音，給自己打分</div><div class="stars" id="stars">'+[1,2,3,4,5].map(function(n){return'<button data-star="'+n+'" class="'+((st.stars||0)>=n?"on":"")+'" aria-label="'+n+' 顆星">★</button>';}).join("")+'</div></div>';
+      h+=["說話過程沒有停太久","用到了本週的句子","說滿 30 秒以上","敢再錄一次挑戰更好"].map(function(t,i){return'<label class="check"><input type="checkbox" id="ck'+i+'" '+((st.ck||[])[i]?"checked":"")+'> '+t+'</label>';}).join("");
+    }
+  }
+  return h;
+}
+function fmt(s){return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
+function targetOf(it){return it.k==="role"?it.b[1]:it.en;}
+function bindCard(it,st){
+  var c=document.getElementById("card");
+  c.querySelectorAll("[data-say]").forEach(function(b){b.onclick=function(){speak(targetOf(it),{slow:b.dataset.say==="s",b:it.k==="role"||it.who==="你"});};});
+  var rv=document.getElementById("reveal");if(rv)rv.onclick=function(){st.reveal=true;renderItem();};
+  var sa=document.getElementById("sayA");if(sa)sa.onclick=function(){speak(it.a[1]);};
+  var rec=c.querySelector("[data-rec]");
+  if(rec)rec.onclick=function(){
+    if(mediaRec){stopRec().then(function(url){rec.classList.remove("on");rec.innerHTML=IC.rec+"錄音對照";if(url)document.getElementById("myrec").innerHTML='<audio controls src="'+url+'" style="width:100%"></audio>';});}
+    else startRec().then(function(){rec.classList.add("on");rec.innerHTML=IC.stop+"停止錄音";}).catch(function(){toast("無法使用麥克風，請在瀏覽器設定允許麥克風");});
+  };
+  if(it.k==="dialog"){
+    var playing=false;
+    function playAll(slow){
+      if(playing){playing=false;synth&&synth.cancel();return;}
+      playing=true;var i=0;
+      (function next(){
+        c.querySelectorAll(".line").forEach(function(el){el.classList.remove("now");});
+        if(!playing||i>=it.d.l.length){playing=false;return;}
+        var el=c.querySelector('[data-line="'+i+'"]');el.classList.add("now");el.scrollIntoView({block:"nearest",behavior:"smooth"});
+        var x=it.d.l[i];speak(x[1],{slow:slow,b:x[0]==="B"}).then(function(){i++;setTimeout(next,350);});
+      })();
+      st.heardAll=true;
+    }
+    document.getElementById("playall").onclick=function(){playAll(false);};
+    document.getElementById("playslow").onclick=function(){playAll(true);};
+  }
+  if(it.k==="free"&&st.url){
+    c.querySelectorAll("[data-star]").forEach(function(b){b.onclick=function(){st.stars=+b.dataset.star;renderItem();};});
+    for(var i=0;i<4;i++)(function(i){var el=document.getElementById("ck"+i);if(el)el.onchange=function(){st.ck=st.ck||[];st.ck[i]=el.checked;};})(i);
+  }
+  if(it.k==="role"&&!st.autoplayed){st.autoplayed=true;setTimeout(function(){speak(it.a[1]);},300);}
+}
+function renderDock(it,st){
+  var last=L.i===L.items.length-1;
+  var canNext=it.k==="dialog"||(it.k==="free"?!!st.stars:st.score!=null||st.skipOk);
+  var h='<div class="dock"><div class="dock-in">';
+  if(it.k!=="dialog")h+='<div><button class="mic" id="mic" aria-label="'+(it.k==="free"?"錄音":"開始說")+'">'+IC.mic+'</button></div>';
+  h+='<button class="btn '+(canNext?"primary":"ghost")+'" id="next">'+(last?"完成今天":"下一個")+'</button>';
+  h+='</div></div>';
+  $dock.innerHTML=h;
+  document.getElementById("next").onclick=function(){
+    if(!canNext&&it.k!=="free"){st.skipOk=true;st.score=st.score==null?0:st.score;}
+    if(it.k==="free"&&!st.stars){toast(st.url?"先給自己打個星星分數":"先錄一段，再給自己打分");return;}
+    advance();
+  };
+  var mic=document.getElementById("mic");
+  if(!mic)return;
+  if(it.k==="free"){
+    mic.onclick=function(){
+      if(mediaRec){
+        clearInterval(L.timer);L.timer=null;mic.classList.remove("live");mic.innerHTML=IC.mic;
+        stopRec().then(function(url){st.url=url;renderItem();});
+      }else{
+        if(!canRecord()){toast("這個瀏覽器無法錄音，請改用 Safari 或 Chrome");return;}
+        startRec().then(function(){
+          st.secs=0;st.url=null;mic.classList.add("live");mic.innerHTML=IC.stop;
+          var tEl=document.getElementById("timer");
+          L.timer=setInterval(function(){st.secs++;if(tEl)tEl.textContent=fmt(st.secs);if(st.secs>=180)mic.click();},1000);
+        }).catch(function(){toast("無法使用麥克風，請在瀏覽器設定允許麥克風");});
+      }
+    };
+    return;
+  }
+  mic.onclick=function(){
+    if(recog){stopListen();return;}
+    if(!SR){toast("這個瀏覽器不支援語音辨識，請用 iPhone Safari 或 Chrome；可先用「錄音對照」練習");return;}
+    mic.classList.add("live");mic.innerHTML=IC.stop;
+    var res=document.getElementById("res");
+    res.innerHTML='<div class="heard">正在聽… <b id="interim"></b></div>';
+    listen(function(t){var el=document.getElementById("interim");if(el)el.textContent=t;}).then(function(alts){
+      var target=targetOf(it),best=bestOf(target,alts.length?alts:[""]);
+      st.tries=(st.tries||0)+1;
+      if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;}
+      st.heard=best.heard;st.lastScore=best.score;
+      renderItem();
+      if(best.score>=85&&navigator.vibrate)navigator.vibrate(30);
+    }).catch(function(err){
+      mic.classList.remove("live");mic.innerHTML=IC.mic;
+      res.innerHTML="";
+      toast(err==="not-allowed"||err==="service-not-allowed"?"麥克風或語音辨識被拒絕，請到瀏覽器設定允許（iPhone 需開啟 Siri 與聽寫）":"語音辨識出錯："+err);
+    });
+  };
+}
+function advance(){
+  var st=L.state[L.i],it=curItem();
+  if(it.k==="free")L.scores.push((st.stars||0)*20);
+  else if(it.k!=="dialog")L.scores.push(st.score||0);
+  if(L.i<L.items.length-1){L.i++;renderItem();}
+  else finish();
+}
+function finish(){
+  stopAll();
+  var sc=L.scores.length?Math.round(L.scores.reduce(function(a,b){return a+b;},0)/L.scores.length):100;
+  var d=L.info.d,prev=S.done[d];
+  S.done[d]={date:prev?prev.date:todayStr(),score:prev?Math.max(prev.score,sc):sc};
+  save();
+  var nd=nextDay(),grad=d===365;
+  var h='<div class="summary"><div class="eyebrow">Day '+d+' 完成</div><div class="big-score">'+sc+'</div><h2>'+(grad?"恭喜畢業！365 天，你做到了":sc>=85?"今天說得很好！":sc>=60?"完成！明天繼續":"完成！開口就是進步")+'</h2>';
+  h+='<p class="muted">連續 '+streak()+' 天 · 已完成 '+doneCount()+' / 365 天</p>';
+  if(!grad)h+='<p class="tip">下一堂：Day '+nd+'「'+esc(dayInfo(nd).week.t)+'」· '+esc(dayInfo(nd).type.n)+'</p>';
+  h+='</div>';
+  $app.innerHTML=h;
+  $dock.innerHTML='<div class="dock"><div class="dock-in"><button class="btn ghost" id="again">再練一次</button><button class="btn primary" id="home">回首頁</button></div></div>';
+  document.getElementById("home").onclick=renderHome;
+  document.getElementById("again").onclick=function(){openLesson(d);};
+}
+
+/* ---------- 設定 ---------- */
+function renderSettings(){
+  stopAll();loadVoices();
+  var opts=function(sel){return'<option value="">自動選擇</option>'+voices.map(function(v){return'<option '+(v.name===sel?"selected":"")+'>'+esc(v.name)+'</option>';}).join("");};
+  var h='<div class="lesson-top"><button class="iconbtn" id="back" aria-label="回首頁">'+IC.back+'</button><h2 style="font-size:20px">設定</h2></div>';
+  h+='<div class="field"><label for="nm">你的英文名字（課文中的 {name} 會換成它）</label><input id="nm" value="'+esc(S.name)+'" autocomplete="off"></div>';
+  h+='<div class="field"><label for="rt">朗讀速度：<span id="rtv">'+S.rate.toFixed(2)+'</span></label><input id="rt" type="range" min="0.6" max="1.2" step="0.05" value="'+S.rate+'"></div>';
+  h+='<div class="field"><label for="va">主要聲音（美式）</label><select id="va">'+opts(S.voiceA)+'</select></div>';
+  h+='<div class="field"><label for="vb">對話中「你」的聲音</label><select id="vb">'+opts(S.voiceB)+'</select></div>';
+  h+='<div class="row" style="margin-bottom:24px"><button class="pill" id="test">'+IC.play+'試聽</button></div>';
+  h+='<div class="sec-h"><h3>備份進度</h3></div><p class="tip" style="margin-top:0">進度只存在這支手機的瀏覽器裡。換手機或清除瀏覽資料前，先複製備份碼存起來。</p>';
+  h+='<div class="field"><textarea id="bk" aria-label="備份碼">'+esc(JSON.stringify({v:1,name:S.name,done:S.done}))+'</textarea></div>';
+  h+='<div class="row" style="margin-bottom:24px"><button class="pill" id="copy">複製備份碼</button><button class="pill" id="restore">用上面的備份碼還原</button></div>';
+  h+='<div class="note"><b>語音辨識小提醒</b><br>iPhone：請用 Safari，並在「設定 → Siri」開啟 Siri、在「鍵盤」開啟聽寫。<br>Android：用 Chrome。第一次使用會詢問麥克風權限，請選允許。<br>目前狀態：語音辨識 '+(SR?"✅ 可用":"❌ 不支援")+'、朗讀 '+(synth?"✅ 可用":"❌ 不支援")+'、錄音 '+(canRecord()?"✅ 可用":"❌ 不支援")+'</div>';
+  h+='<div style="margin-top:24px"><button class="pill" id="reset" style="color:var(--bad)">清除所有進度</button></div>';
+  $app.innerHTML=h;$dock.innerHTML="";
+  document.getElementById("back").onclick=renderHome;
+  document.getElementById("nm").oninput=function(e){S.name=e.target.value.trim()||"Alex";save();};
+  document.getElementById("rt").oninput=function(e){S.rate=+e.target.value;document.getElementById("rtv").textContent=S.rate.toFixed(2);save();};
+  document.getElementById("va").onchange=function(e){S.voiceA=e.target.value;save();};
+  document.getElementById("vb").onchange=function(e){S.voiceB=e.target.value;save();};
+  document.getElementById("test").onclick=function(){speak("Hi, I'm your speaking partner. Let's practice together!");};
+  document.getElementById("copy").onclick=function(){var t=document.getElementById("bk");var ok=function(){toast("已複製備份碼");};if(navigator.clipboard)navigator.clipboard.writeText(t.value).then(ok,function(){t.select();toast("請長按選取後複製");});else{t.select();toast("請長按選取後複製");}};
+  document.getElementById("restore").onclick=function(){try{var o=JSON.parse(document.getElementById("bk").value);if(!o.done)throw 0;S.done=o.done;if(o.name)S.name=o.name;save();toast("已還原 "+Object.keys(S.done).length+" 天的進度");}catch(e){toast("備份碼格式不對，請重新貼上完整內容");}};
+  var armed=false;document.getElementById("reset").onclick=function(e){if(!armed){armed=true;e.target.textContent="再按一次確認清除";setTimeout(function(){armed=false;e.target.textContent="清除所有進度";},3000);return;}S.done={};save();toast("已清除進度");renderHome();};
+  window.scrollTo(0,0);
+}
+
+renderHome();
+})();
+</script>
+</body>
+</html>
