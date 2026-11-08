@@ -272,18 +272,33 @@ function pickVoice(pref,alt){
   var list=voices.slice().sort(function(a,b){var ia=good.findIndex(function(g){return a.name.indexOf(g)>=0;}),ib=good.findIndex(function(g){return b.name.indexOf(g)>=0;});return(ia<0?99:ia)-(ib<0?99:ib);});
   return alt?(list[1]||list[0]):list[0];
 }
+function voiceFor(b){
+  // iPhone 上指定未下載的聲音（例如 Ava 加強版）會完全沒聲音，所以只在使用者自己選了聲音時才指定
+  if(isIOS){var pref=b?S.voiceB:S.voiceA;if(!pref)return null;if(!voices.length)loadVoices();return voices.find(function(x){return x.name===pref;})||null;}
+  return b?pickVoice(S.voiceB,true):pickVoice(S.voiceA,false);
+}
+// iPhone（iOS 16.4+）：播放時切到「播放」模式，聲音走喇叭、不受麥克風影響；聆聽時切回「錄音」模式
+function audioMode(t){try{if(navigator.audioSession)navigator.audioSession.type=t;}catch(e){}}
+var ttsWarm=false;
+function warmTTS(){
+  if(ttsWarm||!synth)return;ttsWarm=true;
+  try{var u=new SpeechSynthesisUtterance(" ");u.volume=0;u.lang="en-US";synth.speak(u);}catch(e){}
+}
+document.addEventListener("touchend",warmTTS,{once:true,passive:true});
+document.addEventListener("click",warmTTS,{once:true});
 var speakSeq=0;
 function speak(text,opt){
   opt=opt||{};
   return new Promise(function(res){
     if(!synth){toast("這個瀏覽器不支援朗讀");return res();}
+    audioMode("playback");
     var my=++speakSeq,done=false,started=false;
     function fin(){if(!done){done=true;res();}}
     function go(){
       if(my!==speakSeq)return fin();
       var u=new SpeechSynthesisUtterance(fill(text));
       u.lang="en-US";u.rate=opt.slow?Math.max(.5,S.rate-.3):S.rate;u.volume=1;
-      var v=opt.b?pickVoice(S.voiceB,true):pickVoice(S.voiceA,false);if(v)u.voice=v;
+      var v=voiceFor(opt.b);if(v)u.voice=v;
       u.onstart=function(){started=true;};
       u.onend=fin;
       u.onerror=function(e){var c=e&&e.error;if(c&&c!=="interrupted"&&c!=="canceled")toast("朗讀失敗（"+c+"），請重新整理頁面再試");fin();};
@@ -313,7 +328,7 @@ function srErrMsg(c){return SR_ERR[c]||("語音辨識出錯（"+c+"），請重�
 function listen(onInterim){
   return new Promise(function(res,rej){
     if(!SR)return rej("unsupported");
-    hush();
+    hush();audioMode("play-and-record");
     var r=new SR();recog=r;
     r.lang="en-US";r.interimResults=true;r.maxAlternatives=isIOS?1:3;r.continuous=false;
     var finals=[],last="",settled=false,heardAny=false;
@@ -341,7 +356,7 @@ function runDiag(kind,log){
     if(!synth){w("✗ 這個瀏覽器沒有朗讀功能");return;}
     loadVoices();w("美式英文聲音數量："+voices.length+(voices.length?"（"+voices.slice(0,3).map(function(v){return v.name;}).join("、")+"…）":""));
     w("開始朗讀：Hello, can you hear me?");
-    var u=new SpeechSynthesisUtterance("Hello, can you hear me?");u.lang="en-US";var v=pickVoice(S.voiceA);if(v)u.voice=v;
+    audioMode("playback");var u=new SpeechSynthesisUtterance("Hello, can you hear me?");u.lang="en-US";u.volume=1;var v=voiceFor(false);if(v)u.voice=v;w("使用聲音："+(v?v.name:"系統預設"));
     var t0=Date.now(),st=false;
     u.onstart=function(){st=true;w("✓ 開始播放（"+(Date.now()-t0)+" ms）");};
     u.onend=function(){w("✓ 播放結束。有聽到聲音就代表朗讀正常。");};
@@ -366,6 +381,7 @@ function runDiag(kind,log){
   }
   w("瀏覽器："+(inApp?"App 內建瀏覽器":iosOther?"iPhone 上的非 Safari 瀏覽器":isIOS?"iPhone／iPad Safari":/Android/.test(UA)?"Android":"電腦"));
   w("從主畫面開啟："+(standalone?"是":"否"));
+  w("音訊模式控制："+(navigator.audioSession?"有（"+navigator.audioSession.type+"）":"沒有"));
   w("HTTPS："+(location.protocol==="https:"||location.hostname==="localhost"?"是":"否"));
   w("語音辨識："+(SR?"有":"沒有")+"　朗讀："+(synth?"有":"沒有")+"　錄音："+(canRecord()?"有":"沒有"));
   w("UA："+UA);
@@ -525,6 +541,7 @@ function weekReportHTML(w){
 var mediaRec=null,recChunks=[],recStream=null;
 function canRecord(){return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);}
 function startRec(){
+  audioMode("play-and-record");
   return navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
     recStream=st;recChunks=[];
     var type=["audio/webm","audio/mp4","audio/aac"].find(function(t){return MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t);});
@@ -544,6 +561,7 @@ function stopRec(){
 /* ---------- 長時間語音轉文字（自由開口） ---------- */
 var longStop=null;
 function startLong(onText,onEnd){
+  audioMode("play-and-record");
   var finals="",stopped=false,ended=false,cur=null;
   function end(err){if(ended)return;ended=true;longStop=null;onEnd(finals.trim(),err);}
   function run(){
