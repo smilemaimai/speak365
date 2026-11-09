@@ -289,6 +289,15 @@ function voiceFor(b){
 }
 // iPhone（iOS 16.4+）：播放時切到「播放」模式，聲音走喇叭、不受麥克風影響；聆聽時切回「錄音」模式
 function audioMode(t){try{if(navigator.audioSession)navigator.audioSession.type=t;}catch(e){}}
+// 麥克風模式：iPhone 上不同機型／系統版本適合的音訊設定不同，收不到聲音時會自動換下一種
+// 0 標準：朗讀走喇叭、收音切換錄音模式；1 自動：交給系統決定；2 相容：完全不改音訊設定、等久一點
+var MIC_MODES=["標準","自動","相容"],MIC_WAIT=[350,800,1200];
+function micMode(){var m=+S.micMode||0;return m>=0&&m<3?m:0;}
+function ttsSession(){var m=micMode();if(m===0)audioMode("playback");else if(m===1)audioMode("auto");}
+function recSession(){var m=micMode();if(m===0)audioMode("play-and-record");else if(m===1)audioMode("auto");}
+var recUsed=false,SRLOG=[];
+try{SRLOG=JSON.parse(localStorage.getItem("speak365.srlog")||"[]");}catch(e){SRLOG=[];}
+function logSR(o){SRLOG.unshift(o);SRLOG=SRLOG.slice(0,12);try{localStorage.setItem("speak365.srlog",JSON.stringify(SRLOG));}catch(e){}}
 var ttsWarm=false;
 function warmTTS(){
   if(ttsWarm||!synth)return;ttsWarm=true;
@@ -301,7 +310,7 @@ function speak(text,opt){
   opt=opt||{};
   return new Promise(function(res){
     if(!synth){toast("這個瀏覽器不支援朗讀");return res();}
-    audioMode("playback");
+    ttsSession();
     var my=++speakSeq,done=false,started=false;
     function fin(){if(!done){done=true;lastTTSEnd=Date.now();res();}}
     function go(){
@@ -329,9 +338,9 @@ var recog=null,recogStop=null,recogKill=null;
 // 開始收音前：停掉朗讀並等 iPhone 把音訊切回麥克風（朗讀剛結束時立刻收音常會失敗）
 function prepAudio(extra){
   return new Promise(function(res){
-    var w=extra||0;
-    if(synth&&(synth.speaking||synth.pending)){speakSeq++;synth.cancel();w=Math.max(w,350);}
-    else{var g=Date.now()-lastTTSEnd;if(g<350)w=Math.max(w,350-g);}
+    var w=extra||0,need=MIC_WAIT[micMode()];
+    if(synth&&(synth.speaking||synth.pending)){speakSeq++;synth.cancel();w=Math.max(w,need);}
+    else{var g=Date.now()-lastTTSEnd;if(g<need)w=Math.max(w,need-g);}
     if(w)setTimeout(res,w);else res();
   });
 }
@@ -343,7 +352,7 @@ var SR_ERR={
   "language-not-supported":"手機不支援英文辨識。iPhone：設定 → 一般 → 鍵盤 → 鍵盤 → 加入「英文（美國）」。",
   "bad-grammar":"語音辨識設定錯誤，請重新整理頁面。",
   "start-failed":"麥克風沒有啟動。請關掉正在用麥克風的 App（通話、錄音、Siri），再按一次麥克風；還是不行就關掉這個 Safari 分頁重開。",
-  "no-sound":"5 秒內沒有聽到聲音，已自動取消。準備好再按一次麥克風。",
+  "no-sound":"5 秒內沒收到聲音，已自動取消，並換成下一種麥克風模式。請再按一次麥克風試試。",
   "no-start":"麥克風沒有啟動。請關掉正在用麥克風的 App（通話、錄音、Siri），再按一次麥克風；還是不行就關掉這個 Safari 分頁重開。"
 };
 function srErrMsg(c){return SR_ERR[c]||("語音辨識出錯（"+c+"），請重新整理頁面再試，或到設定做語音診斷。");}
@@ -352,12 +361,16 @@ function listen(onInterim,onReady){
     if(!SR)return rej("unsupported");
     var hadPrev=!!recogKill;if(recogKill)recogKill();
     var done=false,cur=null,timers=[],finals=[],last="",started=false,heard=false,quietT=null;
+    var LG={t:new Date().toTimeString().slice(0,8),m:micMode(),tts:lastTTSEnd?Math.min(99999,Date.now()-lastTTSEnd):-1,rec:recUsed,as:navigator.audioSession?navigator.audioSession.type:"-",ev:[]};
     function T(f,ms){var t=setTimeout(f,ms);timers.push(t);return t;}
     function result(){return finals.length?finals:(last?[last]:[]);}
     function finish(ok,v){
       if(done)return;done=true;timers.forEach(clearTimeout);
       recog=null;recogStop=null;recogKill=null;
-      if(cur){var c=cur;cur=null;c.onstart=c.onaudiostart=c.onsoundstart=c.onspeechstart=c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}
+      LG.out=ok?(v&&v.length?"ok:"+String(v[0]).slice(0,30):"empty"):v;if(v!=="aborted")logSR(LG);
+      // 沒收到任何聲音：自動換下一種麥克風模式
+      if(!ok&&(v==="no-sound"||v==="no-start")&&!heard&&!last){S.micMode=(micMode()+1)%3;save();}
+      if(cur){var c=cur;cur=null;c.onstart=c.onaudiostart=c.onsoundstart=c.onspeechstart=c.onaudioend=c.onnomatch=c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}
       if(ok)res(v);else rej(v);
     }
     // 使用者再按一次麥克風：正常停止，最多等 1.2 秒收結果
@@ -367,8 +380,10 @@ function listen(onInterim,onReady){
     recog={};
     function attempt(n){
       if(done)return;
-      audioMode("play-and-record");
+      recSession();
       var r;try{r=new SR();}catch(e){return finish(false,"start-failed");}
+      var t0=Date.now();function ev(n){LG.ev.push(n+"@"+(Date.now()-t0));}
+      if(n>0)ev("retry");
       cur=r;recog=r;started=false;
       r.lang="en-US";r.interimResults=true;r.maxAlternatives=isIOS?1:3;r.continuous=false;
       var sil=null,retry=false;
@@ -380,12 +395,15 @@ function listen(onInterim,onReady){
       // 麥克風啟動後 5 秒都沒聽到聲音：自動取消，不評分
       function ready(){if(!started){started=true;if(onReady)onReady();if(!heard){clearTimeout(quietT);quietT=T(function(){if(!heard&&!last&&!done)finish(false,"no-sound");},5000);}}}
       function gotSound(){heard=true;clearTimeout(quietT);}
-      r.onstart=r.onaudiostart=function(){if(cur!==r)return;ready();};
-      r.onsoundstart=r.onspeechstart=function(){if(cur!==r)return;gotSound();};
+      r.onstart=function(){if(cur!==r)return;ev("start");ready();};
+      r.onaudiostart=function(){if(cur!==r)return;ev("audio");ready();};
+      r.onsoundstart=function(){if(cur!==r)return;ev("sound");gotSound();};
+      r.onspeechstart=function(){if(cur!==r)return;ev("speech");gotSound();};
+      r.onaudioend=function(){ev("audioend");};r.onnomatch=function(){ev("nomatch");};
       r.onresult=function(e){
         if(cur!==r)return;
         ready();gotSound();
-        var x=e.results[e.results.length-1];
+        var x=e.results[e.results.length-1];if(!LG.firstRes){LG.firstRes=1;ev("result");}
         last=x[0].transcript;if(onInterim)onInterim(last);
         if(x.isFinal){finals=[];for(var i=0;i<x.length;i++)finals.push(x[i].transcript);}
         // iPhone 有時說完不會自己結束：停頓一下就自動收尾
@@ -393,13 +411,13 @@ function listen(onInterim,onReady){
         sil=T(function(){if(cur!==r)return;try{r.stop();}catch(z){}T(function(){finish(true,result());},1000);},x.isFinal?700:1800);
       };
       r.onerror=function(e){
-        if(cur!==r)return;var c=e.error;
+        if(cur!==r)return;var c=e.error;ev("err:"+c);
         if(c==="no-speech"||c==="aborted")return;
         if((c==="audio-capture"||c==="network")&&n<1&&!last){retry=true;return;}
         finish(false,c);
       };
       r.onend=function(){
-        if(cur!==r)return;
+        if(cur!==r)return;ev("end");
         if(retry||(!started&&!last))return retryOrFail("no-start");
         if(!last&&!heard)return finish(false,"no-sound");
         finish(true,result());
@@ -418,6 +436,10 @@ function killListen(){if(recogKill)recogKill();}
 document.addEventListener("visibilitychange",function(){if(document.hidden){killListen();if(longStop)longStop(true);}});
 
 /* ---------- 語音診斷 ---------- */
+function srLogText(){
+  if(!SRLOG.length)return"還沒有紀錄";
+  return SRLOG.map(function(o){return o.t+" 模式"+MIC_MODES[o.m]+" 朗讀後"+(o.tts<0?"—":Math.round(o.tts/100)/10+"秒")+(o.rec?" 錄過音":"")+" ["+o.as+"]\n  "+o.ev.join(" ")+"\n  → "+o.out;}).join("\n");
+}
 function runDiag(kind,log){
   function w(s){log.textContent+=s+"\n";}
   if(kind==="tts"){
@@ -435,7 +457,7 @@ function runDiag(kind,log){
   }
   if(kind==="sr"){
     if(!SR){w("✗ 這個瀏覽器沒有語音辨識功能");return;}
-    hush();
+    hush();recSession();w("麥克風模式："+MIC_MODES[micMode()]);
     var r=new SR();r.lang="en-US";r.interimResults=true;r.maxAlternatives=1;r.continuous=false;
     w("請在 1 秒內說：Hello, how are you?");
     ["start","audiostart","soundstart","speechstart","speechend","audioend"].forEach(function(n){r["on"+n]=function(){w("· "+n);};});
@@ -609,7 +631,7 @@ function weekReportHTML(w){
 var mediaRec=null,recChunks=[],recStream=null;
 function canRecord(){return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);}
 function startRec(){
-  audioMode("play-and-record");
+  recUsed=true;recSession();
   return navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
     recStream=st;recChunks=[];
     var type=["audio/webm","audio/mp4","audio/aac"].find(function(t){return MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t);});
@@ -630,11 +652,11 @@ function stopRec(){
 var longStop=null;
 function startLong(onText,onEnd){
   var finals="",stopped=false,ended=false,cur=null,quick=0,anyText=false,quietT=null;
-  function end(err,silent){if(ended)return;ended=true;longStop=null;clearTimeout(quietT);if(cur){var c=cur;cur=null;c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}if(!silent)onEnd(finals.trim(),err);}
+  function end(err,silent){if(ended)return;ended=true;longStop=null;clearTimeout(quietT);if((err==="no-sound"||err==="no-start")&&!anyText){S.micMode=(micMode()+1)%3;save();}if(!silent)logSR({t:new Date().toTimeString().slice(0,8),m:micMode(),tts:-1,rec:recUsed,as:navigator.audioSession?navigator.audioSession.type:"-",ev:["自由開口"],out:err||(anyText?"ok":"empty")});if(cur){var c=cur;cur=null;c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}if(!silent)onEnd(finals.trim(),err);}
   function again(){if(++quick>=5){stopped=true;end("no-start");}else setTimeout(run,300);}
   function run(){
     if(stopped||ended)return end();
-    audioMode("play-and-record");
+    recSession();
     var r,t0=Date.now(),got=false;
     try{r=new SR();}catch(e){return end("start-failed");}
     cur=r;r.lang="en-US";r.continuous=true;r.interimResults=true;
@@ -984,6 +1006,8 @@ function renderSettings(){
   h+='<div class="row" style="margin-bottom:24px"><button class="pill" id="copy">複製備份碼</button><button class="pill" id="restore">用上面的備份碼還原</button></div>';
   h+='<div class="sec-h"><h3>語音診斷</h3></div><p class="tip" style="margin-top:0">麥克風或朗讀不能用時，依序按下面三個按鈕，把結果截圖給我。</p>';
   h+='<div class="row" style="margin-bottom:10px"><button class="pill" id="dEnv">1. 環境檢查</button><button class="pill" id="dTts">2. 測試朗讀</button><button class="pill" id="dSr">3. 測試辨識</button></div><pre class="diaglog" id="dLog">'+esc(envWarning()||"按上面的按鈕開始檢查")+'</pre>';
+  h+='<div class="field" style="margin-top:14px"><label for="mm">麥克風模式（收不到聲音時會自動切換）</label><select id="mm">'+MIC_MODES.map(function(n,i){return'<option value="'+i+'"'+(micMode()===i?' selected':'')+'>'+n+'</option>';}).join("")+'</select></div>';
+  h+='<div class="tip">最近幾次麥克風紀錄（收不到聲音時請截圖給我）</div><pre class="diaglog" id="srLog">'+esc(srLogText())+'</pre>';
   h+='<div class="note"><b>iPhone 必要設定</b><br>1. 用 <b>Safari</b> 開啟網址（不要用 LINE 裡的瀏覽器或 Chrome）<br>2. 設定 → Siri：開啟 Siri<br>3. 設定 → 一般 → 鍵盤：開啟「聽寫」，並在「鍵盤」裡加入「英文（美國）」<br>4. 設定 → Safari → 麥克風：允許<br>5. 側邊靜音開關打開時，朗讀會沒有聲音</div>';
   h+='<div style="margin-top:24px"><button class="pill" id="reset" style="color:var(--bad)">清除所有進度</button></div>';
   $app.innerHTML=h;$dock.innerHTML="";
@@ -993,6 +1017,7 @@ function renderSettings(){
   document.getElementById("va").onchange=function(e){S.voiceA=e.target.value;save();};
   document.getElementById("vb").onchange=function(e){S.voiceB=e.target.value;save();};
   var dl=document.getElementById("dLog");
+  document.getElementById("mm").onchange=function(e){S.micMode=+e.target.value;save();toast("已換成「"+MIC_MODES[S.micMode]+"」模式");};
   document.getElementById("dEnv").onclick=function(){dl.textContent="";runDiag("env",dl);};
   document.getElementById("dTts").onclick=function(){dl.textContent="";runDiag("tts",dl);};
   document.getElementById("dSr").onclick=function(){dl.textContent="";runDiag("sr",dl);};
