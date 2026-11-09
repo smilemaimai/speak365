@@ -122,6 +122,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .line .en{font-size:17px}
 .line .zh{font-size:13.5px}
 .scene{font-size:14px;color:var(--muted)}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:3px;gap:2px;margin-top:8px}
+.seg button{min-height:34px;padding:0 14px;border-radius:99px;font-size:14px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--ink);color:var(--surface)}
+.vtag{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--voice-soft);color:var(--voice);letter-spacing:.04em;margin-right:6px;vertical-align:2px}
+.alt{border-left:3px solid var(--line);padding:2px 0 2px 10px;display:grid;gap:2px}
+.alt .t{font-size:16px;font-weight:600;word-break:break-word}
+.alt .n{font-size:13px;color:var(--muted)}
+.line .alt .t{font-size:14px}
+.okalt{font-size:13.5px;color:var(--good);font-weight:600}
 
 /* 底部固定列 */
 .dock{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));z-index:5}
@@ -188,6 +197,7 @@ b.up{color:var(--good)}b.down{color:var(--bad)}
 
 <script src="data1.js"></script>
 <script src="data2.js"></script>
+<script src="data3.js"></script>
 <script>
 (function(){
 "use strict";
@@ -212,7 +222,7 @@ function dayInfo(d){
 
 /* ---------- 儲存 ---------- */
 var KEY="speak365.v1";
-var S={name:"Miles",rate:0.95,voiceA:"",voiceB:"",done:{}};
+var S={name:"Miles",rate:0.95,voiceA:"",voiceB:"",done:{},style:"casual"};
 try{var raw=localStorage.getItem(KEY);if(raw)Object.assign(S,JSON.parse(raw));}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 function fill(s){return s.replace(/\{name\}/g,S.name||"Alex");}
@@ -392,7 +402,7 @@ var ONES=["zero","one","two","three","four","five","six","seven","eight","nine",
 var TENS=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
 function nw(n){n=+n;if(n<20)return ONES[n];if(n<100)return TENS[Math.floor(n/10)]+(n%10?" "+ONES[n%10]:"");if(n<1000)return ONES[Math.floor(n/100)]+" hundred"+(n%100?" "+nw(n%100):"");if(n<10000)return nw(Math.floor(n/1000))+" thousand"+(n%1000?" "+nw(n%1000):"");return String(n);}
 var ORD={1:"first",2:"second",3:"third",4:"fourth",5:"fifth",6:"sixth",7:"seventh",8:"eighth",9:"ninth",10:"tenth",11:"eleventh",12:"twelfth",13:"thirteenth",14:"fourteenth",15:"fifteenth",16:"sixteenth",17:"seventeenth",18:"eighteenth",19:"nineteenth",20:"twentieth",21:"twenty first",22:"twenty second",23:"twenty third",30:"thirtieth",31:"thirty first"};
-var HOMO={two:"to",too:"to",four:"for",their:"there","they're":"there",theyre:"there",write:"right",buy:"by",bye:"by",sea:"see",eye:"i",hear:"here",whether:"weather",weak:"week",piece:"peace",ok:"okay",alright:"all right",cause:"because",gonna:"going to",wanna:"want to"};
+var HOMO={two:"to",too:"to",four:"for",their:"there","they're":"there",theyre:"there",write:"right",buy:"by",bye:"by",sea:"see",eye:"i",hear:"here",whether:"weather",weak:"week",piece:"peace",ok:"okay",alright:"all right",cause:"because",gonna:"going to",wanna:"want to",gotta:"got to",kinda:"kind of",sorta:"sort of",lemme:"let me",gimme:"give me",outta:"out of",ya:"you",yeah:"yes",yep:"yes",yup:"yes",nope:"no",okey:"okay",cuz:"because"};
 function norm(s){
   s=fill(s).toLowerCase();
   s=s.replace(/\$(\d+)/g,"$1 dollars");
@@ -490,7 +500,7 @@ var CONNECT=["because","so","but","and then","i think","actually","also","for ex
 function freeAnalyze(text,secs,hints){
   var toks=norm(text),words=toks.length,joined=" "+toks.join(" ")+" ";
   var wpm=secs>=10?Math.round(words/(secs/60)):0;
-  var usedP=hints.filter(function(p){var r=compare(p[0],text);return r.total>=3&&r.ratio>=0.75;});
+  var usedP=[];hints.forEach(function(p){[p[0],p[2]].some(function(t){if(!t)return false;var r=compare(t,text);if(r.total>=3&&r.ratio>=0.75){usedP.push([t]);return true;}return false;});});
   var conns=CONNECT.filter(function(c){return joined.indexOf(" "+c+" ")>=0;});
   var score=Math.min(40,Math.round(words/60*40))+Math.min(20,Math.round(secs/30*20))+Math.min(20,usedP.length*10)+Math.min(20,conns.length*5);
   if(!words)score=0;
@@ -501,7 +511,7 @@ function freeAnalyze(text,secs,hints){
     if(secs>10&&wpm<70)tips.push({h:"停頓比較多（每分鐘 "+wpm+" 字）",b:"先用中文想好三個重點再開口；卡住時可以說 well… 或 let me think… 爭取時間，不要停住。"});
     if(secs>=10&&wpm>170)tips.push({h:"說得太快（每分鐘 "+wpm+" 字）",b:"放慢到每分鐘 110–150 字，句子之間停半拍，對方比較聽得懂。"});
     if(conns.length<2)tips.push({h:"句子之間少了連接詞",b:"試著用 I think…、because…、so…、and then… 把句子串起來，聽起來會更流暢。"});
-    if(!usedP.length&&hints.length)tips.push({h:"用上本週的句子",b:"例如：「"+fill(hints[0][0])+"」把這週學的句子放進你的回答裡。"});
+    if(!usedP.length&&hints.length)tips.push({h:"用上本週的句子",b:"例如：「"+fill(hints[0][2]||hints[0][0])+"」把這週學的句子放進你的回答裡。"});
     if(!tips.length)tips.push({h:"表現很好！",b:"內容長度、速度和連接詞都到位了，下次試著說滿一分鐘。"});
   }
   return{score:Math.max(0,Math.min(100,score)),words:words,secs:secs,wpm:wpm,used:usedP.map(function(p){return fill(p[0]);}),conns:conns,tips:tips.slice(0,3)};
@@ -618,40 +628,54 @@ function renderHome(){
   window.scrollTo(0,0);
 }
 
+/* ---------- 課本／口語說法 ---------- */
+function casW(w){var c=window.CASUAL&&window.CASUAL[w];return c&&c.p&&c.d?c:null;}
+function phr(w,i){var x=WEEKS[w].p[i],c=casW(w),cp=c&&c.p[i];return{en:x[0],zh:x[1],c:cp?cp[0]:"",note:cp?cp[1]:""};}
+function isCas(){return S.style!=="book";}
+function pick(book,cas){return isCas()&&cas?cas:book;}
+var PMAP=null,PMAPN="";
+function lookupPhrase(en){
+  if(!PMAP||PMAPN!==S.name){PMAP={};PMAPN=S.name;WEEKS.forEach(function(W,w){W.p.forEach(function(x,i){var o=phr(w,i);PMAP[fill(o.en)]=o;if(o.c)PMAP[fill(o.c)]=o;});var c=casW(w);W.d.l.forEach(function(x,i){if(x[0]!=="B")return;var o={en:x[1],zh:x[2],c:c?c.d[i]:"",note:""};if(!PMAP[fill(o.en)])PMAP[fill(o.en)]=o;if(o.c&&!PMAP[fill(o.c)])PMAP[fill(o.c)]=o;});});}
+  return PMAP[fill(en)]||null;
+}
+function fromMist(x){var o=lookupPhrase(x.en);return o?{en:o.en,zh:o.zh,c:o.c,note:o.note,mist:true}:{en:x.en,zh:x.zh,mist:true};}
+function styleSegHTML(){return'<div class="seg" role="group" aria-label="說法"><button data-style="book" class="'+(isCas()?"":"on")+'">課本說法</button><button data-style="casual" class="'+(isCas()?"on":"")+'">美式口語</button></div>';}
+
 /* ---------- 建立當天的練習卡 ---------- */
 function buildItems(info){
   var wk=info.week,p=wk.p,items=[],r=rng(info.d*97);
   switch(info.type.k){
     case "learn":
-      p.slice(info.t===0?0:4,info.t===0?4:8).forEach(function(x){items.push({k:"shadow",en:x[0],zh:x[1]});});
+      var st0=info.t===0?0:4;for(var q=st0;q<st0+4;q++){var o=phr(info.w,q);o.k="shadow";items.push(o);}
       break;
     case "recall":
-      shuffle(p,r).forEach(function(x){items.push({k:"recall",en:x[0],zh:x[1]});});
+      shuffle(p.map(function(x,q){return phr(info.w,q);}),r).forEach(function(o){o.k="recall";items.push(o);});
       break;
     case "listen":
-      items.push({k:"dialog",d:wk.d});
-      wk.d.l.forEach(function(x){items.push({k:"shadow",en:x[1],zh:x[2],who:x[0]==="A"?wk.d.a:"你"});});
+      var cw=casW(info.w);
+      items.push({k:"dialog",d:wk.d,cl:cw?cw.d:[]});
+      wk.d.l.forEach(function(x,q){items.push({k:"shadow",en:x[1],zh:x[2],c:cw?cw.d[q]:"",who:x[0]==="A"?wk.d.a:"你"});});
       break;
     case "roleplay":
-      for(var i=0;i<wk.d.l.length;i+=2)items.push({k:"role",a:wk.d.l[i],b:wk.d.l[i+1],aName:wk.d.a,scene:wk.d.s});
+      var cr=casW(info.w);for(var i=0;i<wk.d.l.length;i+=2)items.push({k:"role",a:wk.d.l[i],b:wk.d.l[i+1],ac:cr?cr.d[i]:"",c:cr?cr.d[i+1]:"",en:wk.d.l[i+1][1],zh:wk.d.l[i+1][2],aName:wk.d.a,scene:wk.d.s});
       break;
     case "free":
-      items.push({k:"free",prompt:wk.f,hints:p.slice(0,8)});
+      items.push({k:"free",prompt:wk.f,hints:p.map(function(x,q){var o=phr(info.w,q);return[o.en,o.zh,o.c];})});
       break;
     case "review":
-      var pool=mistList().slice(0,3).map(function(x){return{en:x.en,zh:x.zh,mist:true};});
-      var seen={};pool.forEach(function(x){seen[x.en]=1;});
-      shuffle(p,r).forEach(function(x){if(pool.length<6&&!seen[fill(x[0])]){pool.push({en:x[0],zh:x[1]});seen[fill(x[0])]=1;}});
-      var past=[];for(var w=0;w<info.w;w++)WEEKS[w].p.forEach(function(x){past.push({en:x[0],zh:x[1]});});
-      if(!past.length)past=p.map(function(x){return{en:x[0],zh:x[1]};});
+      var pool=mistList().slice(0,3).map(fromMist);
+      var seen={};pool.forEach(function(x){seen[fill(x.en)]=1;});
+      shuffle(p.map(function(x,q){return phr(info.w,q);}),r).forEach(function(o){if(pool.length<6&&!seen[fill(o.en)]){pool.push(o);seen[fill(o.en)]=1;}});
+      var past=[];for(var w=0;w<info.w;w++)WEEKS[w].p.forEach(function(x,q){past.push(phr(w,q));});
+      if(!past.length)past=p.map(function(x,q){return phr(info.w,q);});
       shuffle(past,r).forEach(function(x){if(pool.length<8&&!seen[fill(x.en)]){pool.push(x);seen[fill(x.en)]=1;}});
-      shuffle(pool,r).forEach(function(x){items.push({k:"recall",en:x.en,zh:x.zh,mist:x.mist});});
+      shuffle(pool,r).forEach(function(x){x.k="recall";items.push(x);});
       break;
     case "grad":
-      var all=[];WEEKS.forEach(function(W){W.p.forEach(function(x){all.push(x);});});
-      mistList().slice(0,3).forEach(function(x){items.push({k:"recall",en:x.en,zh:x.zh,mist:true});});
-      shuffle(all,r).slice(0,8-items.length).forEach(function(x){items.push({k:"recall",en:x[0],zh:x[1]});});
-      items.push({k:"free",prompt:"畢業演講：用兩分鐘說出你這 365 天學英文的故事——一開始怎樣、中間最難的是什麼、現在能做到什麼。",hints:WEEKS[51].p});
+      var all=[];WEEKS.forEach(function(W,w){W.p.forEach(function(x,q){all.push(phr(w,q));});});
+      mistList().slice(0,3).forEach(function(x){var o=fromMist(x);o.k="recall";items.push(o);});
+      shuffle(all,r).slice(0,8-items.length).forEach(function(o){o.k="recall";items.push(o);});
+      items.push({k:"free",prompt:"畢業演講：用兩分鐘說出你這 365 天學英文的故事——一開始怎樣、中間最難的是什麼、現在能做到什麼。",hints:WEEKS[51].p.map(function(x,q){var o=phr(51,q);return[o.en,o.zh,o.c];})});
       break;
   }
   return items;
@@ -670,7 +694,7 @@ function openMistakes(){
   stopAll();
   var ml=mistList().slice(0,10);
   if(!ml.length){toast("錯題本是空的");return;}
-  L={info:{d:0,type:{k:"mist",n:"錯題本"},week:{t:"把錯過的句子練回來"}},items:ml.map(function(x){return{k:"recall",en:x.en,zh:x.zh,mist:true};}),i:0,scores:[],state:{},custom:true};
+  L={info:{d:0,type:{k:"mist",n:"錯題本"},week:{t:"把錯過的句子練回來"}},items:ml.map(function(x){var o=fromMist(x);o.k="recall";return o;}),i:0,scores:[],state:{},custom:true};
   renderItem();
 }
 function curItem(){return L.items[L.i];}
@@ -679,11 +703,12 @@ function renderItem(){
   var info=L.info,it=curItem(),st=L.state[L.i]||(L.state[L.i]={});
   var pct=Math.round(100*L.i/L.items.length);
   var h='<div class="lesson-top"><button class="iconbtn" id="back" aria-label="回首頁">'+IC.back+'</button><div class="bar"><i style="width:'+pct+'%"></i></div><span class="muted" style="font-size:13px;font-variant-numeric:tabular-nums">'+(L.i+1)+'/'+L.items.length+'</span></div>';
-  h+='<div class="lesson-title"><div class="eyebrow">'+(info.d?'Day '+info.d+' · ':'')+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2></div>'+envBannerHTML();
+  h+='<div class="lesson-title"><div class="eyebrow">'+(info.d?'Day '+info.d+' · ':'')+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2>'+(it.k!=="free"?styleSegHTML():'')+'</div>'+envBannerHTML();
   h+='<div class="card" id="card">'+cardHTML(it,st)+'</div>';
   if(it.k!=="free"&&it.k!=="dialog")h+='<p class="tip" style="margin-top:12px">按橘色麥克風開始說，說完會自動停止並評分。綠色是說對的字，紅色是要加強的字，下方會有發音建議。</p>';
   $app.innerHTML=h;
   document.getElementById("back").onclick=renderHome;
+  $app.querySelectorAll("[data-style]").forEach(function(b){b.onclick=function(){if(S.style===b.dataset.style)return;S.style=b.dataset.style;save();renderItem();};});
   bindCard(it,st);
   renderDock(it,st);
   window.scrollTo(0,0);
@@ -693,36 +718,46 @@ function resultHTML(st){
   if(st.score==null)return"";
   var h='<div class="score '+scoreClass(st.score)+'"><span class="num">'+st.score+'</span>'+gradeHTML(st.score)+'<div><div style="font-weight:700">'+scoreWord(st.score)+'</div><div class="tip">第 '+st.tries+' 次嘗試'+(st.lastScore!=null&&st.lastScore!==st.score?'（這次 '+st.lastScore+' 分，保留最高分）':'')+'</div></div></div>';
   h+='<div class="heard">辨識到：<b>'+esc(st.heard||"（沒有聽到聲音）")+'</b></div>';
+  if(st.target&&st.altHit)h+='<div class="okalt">✓ 你說的是'+(st.altHit==="c"?"美式口語":"課本")+'說法，一樣算對！</div>';
   return h+tipsHTML(st.tips);
 }
 function audioRow(){
   return'<div class="row"><button class="pill" data-say="n">'+IC.play+'聽一次</button><button class="pill" data-say="s">'+IC.slow+'慢速</button>'+
     (canRecord()?'<button class="pill" data-rec>'+IC.rec+'錄音對照</button>':'')+'</div><div id="myrec"></div>';
 }
+function vlabel(it,t){return it.c&&t===it.c?"口語":"課本";}
+function enBlock(it,st,big){
+  var t=st.target||targetOf(it),o=it.c?(t===it.c?it.en:it.c):"";
+  var h='<div class="en" id="en">'+(it.c?'<span class="vtag">'+vlabel(it,t)+'</span>':'')+(st.marks?marksHTML(st.marks):esc(fill(t)))+'</div>';
+  var note=it.note?'<div class="n">💬 '+esc(it.note)+'</div>':'';
+  if(o&&t===it.c)h+=note.replace('class="n"','class="tip"')+'<div class="alt"><div class="tip">課本說法</div><div class="t">'+esc(fill(o))+'</div></div>';
+  else if(o)h+='<div class="alt"><div class="tip">美式口語會說</div><div class="t">'+esc(fill(o))+'</div>'+note+'</div>';
+  return h;
+}
 function cardHTML(it,st){
   var h="";
   if(it.k==="shadow"){
     if(it.who)h+='<div class="who">'+esc(it.who)+'</div>';
-    h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.en)))+'</div><div class="zh">'+esc(fill(it.zh))+'</div>'+audioRow()+'<div id="res">'+resultHTML(st)+'</div>';
+    h+=enBlock(it,st)+'<div class="zh">'+esc(fill(it.zh))+'</div>'+audioRow()+'<div id="res">'+resultHTML(st)+'</div>';
   }else if(it.k==="recall"){
-    h+='<div class="who">'+(it.mist?'<span class="wtag">錯題</span> ':'')+'用英文怎麼說？</div><div class="zh big">'+esc(fill(it.zh))+'</div>';
-    if(st.reveal||st.score!=null)h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.en)))+'</div>'+audioRow();
+    h+='<div class="who">'+(it.mist?'<span class="wtag">錯題</span> ':'')+'用英文怎麼說？'+(it.c?'（課本或口語說法都算對）':'')+'</div><div class="zh big">'+esc(fill(it.zh))+'</div>';
+    if(st.reveal||st.score!=null)h+=enBlock(it,st)+audioRow();
     else h+='<div class="hidden-en">先試著自己說，再看答案<br><button class="pill" id="reveal" style="margin-top:10px">顯示答案</button></div>';
     h+='<div id="res">'+resultHTML(st)+'</div>';
   }else if(it.k==="dialog"){
     h+='<div class="scene">情境：'+esc(it.d.s)+'　·　你是 <b>B</b>，對方是 <b>'+esc(it.d.a)+'</b></div><div class="dialog">';
-    it.d.l.forEach(function(x,i){h+='<div class="line '+x[0]+'" data-line="'+i+'"><div class="who">'+(x[0]==="A"?esc(it.d.a):"你")+'</div><div class="en">'+esc(fill(x[1]))+'</div><div class="zh">'+esc(fill(x[2]))+'</div></div>';});
+    it.d.l.forEach(function(x,i){var c=it.cl[i]||"",t=pick(x[1],c),o=c?(t===c?x[1]:c):"";h+='<div class="line '+x[0]+'" data-line="'+i+'"><div class="who">'+(x[0]==="A"?esc(it.d.a):"你")+'</div><div class="en">'+esc(fill(t))+'</div><div class="zh">'+esc(fill(x[2]))+'</div>'+(o?'<div class="alt"><div class="t">'+esc(fill(o))+'</div></div>':'')+'</div>';});
     h+='</div><div class="row"><button class="pill on" id="playall">'+IC.play+'播放整段對話</button><button class="pill" id="playslow">'+IC.slow+'慢速播放</button></div><div class="tip">先完整聽 1–2 次，接下來逐句跟讀。</div>';
   }else if(it.k==="role"){
     h+='<div class="scene">情境：'+esc(it.scene)+'</div>';
-    h+='<div class="line A"><div class="who">'+esc(it.aName)+' 說</div><div class="en">'+esc(fill(it.a[1]))+'</div><div class="zh">'+esc(fill(it.a[2]))+'</div></div>';
+    h+='<div class="line A"><div class="who">'+esc(it.aName)+' 說</div><div class="en">'+esc(fill(pick(it.a[1],it.ac)))+'</div><div class="zh">'+esc(fill(it.a[2]))+'</div></div>';
     h+='<div class="line B"><div class="who">換你說</div><div class="zh big" style="font-size:18px">'+esc(fill(it.b[2]))+'</div>';
-    if(st.reveal||st.score!=null)h+='<div class="en" id="en">'+(st.marks?marksHTML(st.marks):esc(fill(it.b[1])))+'</div>';
+    if(st.reveal||st.score!=null)h+=enBlock(it,st);
     else h+='<button class="pill" id="reveal" style="justify-self:start;margin-top:6px">看英文提示</button>';
     h+='</div><div class="row"><button class="pill" id="sayA">'+IC.replay+'再聽一次對方</button>'+(st.reveal||st.score!=null?'<button class="pill" data-say="n">'+IC.play+'聽我的句子</button>':'')+'</div><div id="res">'+resultHTML(st)+'</div>';
   }else if(it.k==="free"){
     h+='<div class="who">今天的題目</div><div class="zh big">'+esc(it.prompt)+'</div>';
-    h+='<details><summary class="tip" style="cursor:pointer">可以用到的句子（本週）</summary><ul style="margin:8px 0 0;padding-left:20px;font-size:14.5px">'+it.hints.map(function(x){return'<li>'+esc(fill(x[0]))+' <span class="muted">'+esc(fill(x[1]))+'</span></li>';}).join("")+'</ul></details>';
+    h+='<details><summary class="tip" style="cursor:pointer">可以用到的句子（本週）</summary><ul style="margin:8px 0 0;padding-left:20px;font-size:14.5px">'+it.hints.map(function(x){return'<li>'+esc(fill(pick(x[0],x[2])))+' <span class="muted">'+esc(fill(x[1]))+'</span>'+(x[2]?'<br><span class="muted" style="font-size:13px">'+(isCas()?"課本：":"口語：")+esc(fill(isCas()?x[0]:x[2]))+'</span>':'')+'</li>';}).join("")+'</ul></details>';
     h+='<div style="display:flex;align-items:center;gap:14px"><span class="timer" id="timer">'+fmt(st.secs||0)+'</span><span class="tip">目標：說滿 30–60 秒<br>按下方麥克風開始說，說完再按一次停止</span></div>';
     h+='<div class="heard" id="live">'+(st.text?esc(st.text):'<span class="muted">你說的內容會即時顯示在這裡</span>')+'</div>';
     var a=st.analysis;
@@ -741,13 +776,14 @@ function cardHTML(it,st){
   return h;
 }
 function fmt(s){return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
-function targetOf(it){return it.k==="role"?it.b[1]:it.en;}
-function zhOf(it){return it.k==="role"?it.b[2]:it.zh;}
+function targetOf(it){return pick(it.en,it.c);}
+function altOf(it){return it.c?(targetOf(it)===it.c?it.en:it.c):"";}
+function zhOf(it){return it.zh;}
 function bindCard(it,st){
   var c=document.getElementById("card");
   c.querySelectorAll("[data-say]").forEach(function(b){b.onclick=function(){b.classList.add("on");speak(targetOf(it),{slow:b.dataset.say==="s",b:it.k==="role"||it.who==="你"}).then(function(){b.classList.remove("on");});};});
   var rv=document.getElementById("reveal");if(rv)rv.onclick=function(){st.reveal=true;renderItem();};
-  var sa=document.getElementById("sayA");if(sa)sa.onclick=function(){speak(it.a[1]);};
+  var sa=document.getElementById("sayA");if(sa)sa.onclick=function(){speak(pick(it.a[1],it.ac));};
   var rec=c.querySelector("[data-rec]");
   if(rec){var label=rec.innerHTML;rec.onclick=function(){
     if(longStop){toast("請先停止說話評分，再錄音");return;}
@@ -763,14 +799,14 @@ function bindCard(it,st){
         c.querySelectorAll(".line").forEach(function(el){el.classList.remove("now");});
         if(!playing||i>=it.d.l.length){playing=false;return;}
         var el=c.querySelector('[data-line="'+i+'"]');el.classList.add("now");el.scrollIntoView({block:"nearest",behavior:"smooth"});
-        var x=it.d.l[i];speak(x[1],{slow:slow,b:x[0]==="B"}).then(function(){i++;setTimeout(next,350);});
+        var x=it.d.l[i];speak(pick(x[1],it.cl[i]),{slow:slow,b:x[0]==="B"}).then(function(){i++;setTimeout(next,350);});
       })();
     };
     document.getElementById("playall").onclick=function(){playAll(false);};
     document.getElementById("playslow").onclick=function(){playAll(true);};
   }
   if(it.k==="free")c.querySelectorAll("[data-star]").forEach(function(b){b.onclick=function(){st.stars=+b.dataset.star;renderItem();};});
-  if(it.k==="role"&&!st.autoplayed){st.autoplayed=true;speak(it.a[1]);}
+  if(it.k==="role"&&!st.autoplayed){st.autoplayed=true;speak(pick(it.a[1],it.ac));}
 }
 function renderDock(it,st){
   var last=L.i===L.items.length-1;
@@ -816,9 +852,10 @@ function renderDock(it,st){
     res.innerHTML='<div class="heard">正在聽… <b id="interim"></b></div>';
     listen(function(t){var el=document.getElementById("interim");if(el)el.textContent=t;}).then(function(alts){
       if(!alts.length)toast("沒有聽到聲音。按下麥克風後等半秒再開口；若一直這樣，請到設定做語音診斷。");
-      var target=targetOf(it),best=bestOf(target,alts.length?alts:[""]);
+      var A=alts.length?alts:[""],target=targetOf(it),best=bestOf(target,A),other=altOf(it),altHit="";
+      if(other){var b2=bestOf(other,A);if(b2.score>best.score+4){best=b2;target=other;altHit=other===it.c?"c":"b";}}
       st.tries=(st.tries||0)+1;st.lastScore=best.score;
-      if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;st.heard=best.heard;st.tips=tipsFor(target,best);}
+      if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;st.heard=best.heard;st.tips=tipsFor(target,best);st.target=target;st.altHit=altHit;}
       renderItem();
       if(best.score>=85&&navigator.vibrate)navigator.vibrate(30);
     }).catch(function(err){
@@ -835,8 +872,8 @@ function advance(){
     L.scores.push(sc);
   }else if(it.k!=="dialog"){
     L.scores.push(st.score||0);
-    if(!st.skipped)recordResult(targetOf(it),zhOf(it),st.score||0,st.marks,L.info.d);
-    if(!st.skipped&&st.score!=null&&st.score<85)(L.weak=L.weak||[]).push({en:fill(targetOf(it)),score:st.score,tip:(st.tips||[])[0]});
+    if(!st.skipped)recordResult(st.target||targetOf(it),zhOf(it),st.score||0,st.marks,L.info.d);
+    if(!st.skipped&&st.score!=null&&st.score<85)(L.weak=L.weak||[]).push({en:fill(st.target||targetOf(it)),score:st.score,tip:(st.tips||[])[0]});
   }
   save();
   if(L.i<L.items.length-1){L.i++;renderItem();}
