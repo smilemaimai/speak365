@@ -343,6 +343,7 @@ var SR_ERR={
   "language-not-supported":"手機不支援英文辨識。iPhone：設定 → 一般 → 鍵盤 → 鍵盤 → 加入「英文（美國）」。",
   "bad-grammar":"語音辨識設定錯誤，請重新整理頁面。",
   "start-failed":"麥克風沒有啟動。請關掉正在用麥克風的 App（通話、錄音、Siri），再按一次麥克風；還是不行就關掉這個 Safari 分頁重開。",
+  "no-sound":"5 秒內沒有聽到聲音，已自動取消。準備好再按一次麥克風。",
   "no-start":"麥克風沒有啟動。請關掉正在用麥克風的 App（通話、錄音、Siri），再按一次麥克風；還是不行就關掉這個 Safari 分頁重開。"
 };
 function srErrMsg(c){return SR_ERR[c]||("語音辨識出錯（"+c+"），請重新整理頁面再試，或到設定做語音診斷。");}
@@ -350,13 +351,13 @@ function listen(onInterim,onReady){
   return new Promise(function(res,rej){
     if(!SR)return rej("unsupported");
     var hadPrev=!!recogKill;if(recogKill)recogKill();
-    var done=false,cur=null,timers=[],finals=[],last="",started=false;
+    var done=false,cur=null,timers=[],finals=[],last="",started=false,heard=false,quietT=null;
     function T(f,ms){var t=setTimeout(f,ms);timers.push(t);return t;}
     function result(){return finals.length?finals:(last?[last]:[]);}
     function finish(ok,v){
       if(done)return;done=true;timers.forEach(clearTimeout);
       recog=null;recogStop=null;recogKill=null;
-      if(cur){var c=cur;cur=null;c.onstart=c.onaudiostart=c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}
+      if(cur){var c=cur;cur=null;c.onstart=c.onaudiostart=c.onsoundstart=c.onspeechstart=c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}
       if(ok)res(v);else rej(v);
     }
     // 使用者再按一次麥克風：正常停止，最多等 1.2 秒收結果
@@ -376,10 +377,14 @@ function listen(onInterim,onReady){
         r.onstart=r.onaudiostart=r.onresult=r.onerror=r.onend=null;try{r.abort();}catch(e){}
         if(n<1&&!last)T(function(){attempt(n+1);},400);else if(last)finish(true,result());else finish(false,code);
       }
-      r.onstart=r.onaudiostart=function(){if(cur!==r)return;if(!started){started=true;if(onReady)onReady();}};
+      // 麥克風啟動後 5 秒都沒聽到聲音：自動取消，不評分
+      function ready(){if(!started){started=true;if(onReady)onReady();if(!heard){clearTimeout(quietT);quietT=T(function(){if(!heard&&!last&&!done)finish(false,"no-sound");},5000);}}}
+      function gotSound(){heard=true;clearTimeout(quietT);}
+      r.onstart=r.onaudiostart=function(){if(cur!==r)return;ready();};
+      r.onsoundstart=r.onspeechstart=function(){if(cur!==r)return;gotSound();};
       r.onresult=function(e){
         if(cur!==r)return;
-        if(!started){started=true;if(onReady)onReady();}
+        ready();gotSound();
         var x=e.results[e.results.length-1];
         last=x[0].transcript;if(onInterim)onInterim(last);
         if(x.isFinal){finals=[];for(var i=0;i<x.length;i++)finals.push(x[i].transcript);}
@@ -396,6 +401,7 @@ function listen(onInterim,onReady){
       r.onend=function(){
         if(cur!==r)return;
         if(retry||(!started&&!last))return retryOrFail("no-start");
+        if(!last&&!heard)return finish(false,"no-sound");
         finish(true,result());
       };
       // 3 秒內麥克風沒有啟動：重來一次
@@ -623,8 +629,8 @@ function stopRec(){
 /* ---------- 長時間語音轉文字（自由開口） ---------- */
 var longStop=null;
 function startLong(onText,onEnd){
-  var finals="",stopped=false,ended=false,cur=null,quick=0;
-  function end(err,silent){if(ended)return;ended=true;longStop=null;if(cur){var c=cur;cur=null;c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}if(!silent)onEnd(finals.trim(),err);}
+  var finals="",stopped=false,ended=false,cur=null,quick=0,anyText=false,quietT=null;
+  function end(err,silent){if(ended)return;ended=true;longStop=null;clearTimeout(quietT);if(cur){var c=cur;cur=null;c.onresult=c.onerror=c.onend=null;try{c.abort();}catch(e){}}if(!silent)onEnd(finals.trim(),err);}
   function again(){if(++quick>=5){stopped=true;end("no-start");}else setTimeout(run,300);}
   function run(){
     if(stopped||ended)return end();
@@ -632,13 +638,13 @@ function startLong(onText,onEnd){
     var r,t0=Date.now(),got=false;
     try{r=new SR();}catch(e){return end("start-failed");}
     cur=r;r.lang="en-US";r.continuous=true;r.interimResults=true;
-    r.onresult=function(e){if(cur!==r)return;got=true;quick=0;var interim="";for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finals+=e.results[i][0].transcript+" ";else interim+=e.results[i][0].transcript;}onText((finals+interim).trim());};
+    r.onresult=function(e){if(cur!==r)return;got=true;quick=0;anyText=true;clearTimeout(quietT);var interim="";for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finals+=e.results[i][0].transcript+" ";else interim+=e.results[i][0].transcript;}onText((finals+interim).trim());};
     r.onerror=function(e){if(cur!==r)return;if(e.error==="not-allowed"||e.error==="service-not-allowed"){stopped=true;end(e.error);}};
     // iPhone 停頓後會自己結束，沒按停止就自動接著聽；一直秒退就停下來回報
     r.onend=function(){if(cur!==r)return;cur=null;if(stopped)return end();if(!got&&Date.now()-t0<1500)again();else setTimeout(run,250);};
     try{r.start();}catch(x){cur=null;again();}
   }
-  prepAudio().then(run);
+  prepAudio().then(function(){run();quietT=setTimeout(function(){if(!anyText&&!ended){stopped=true;end("no-sound");}},5000);});
   longStop=function(silent){if(silent)return end(null,true);stopped=true;if(cur){try{cur.stop();}catch(e){}setTimeout(function(){end();},1500);}else end();};
 }
 
@@ -893,6 +899,7 @@ function renderDock(it,st){
       startLong(function(t){st.text=t;live.textContent=t||"正在聽…";},function(text,err){
         clearInterval(L.timer);L.timer=null;
         if(err){toast(srErrMsg(err));}
+        if(err==="no-sound"&&!text){st.secs=0;st.text="";renderItem();return;}
         st.text=text||st.text||"";
         st.analysis=freeAnalyze(st.text,st.secs,it.hints);
         renderItem();
