@@ -366,6 +366,7 @@ var SR_ERR={
   "network":"語音辨識需要網路，請確認網路連線。",
   "language-not-supported":"手機不支援英文辨識。iPhone：設定 → 一般 → 鍵盤 → 鍵盤 → 加入「英文（美國）」。",
   "bad-grammar":"語音辨識設定錯誤，請重新整理頁面。",
+  "aborted":"iPhone 的語音辨識服務自己中斷了，通常是麥克風沒收到可辨識的聲音。請按「4. 測試麥克風音量」確認麥克風有沒有聲音。",
   "start-failed":"麥克風沒有啟動。請關掉正在用麥克風的 App（通話、錄音、Siri），再按一次麥克風；還是不行就關掉這個 Safari 分頁重開。",
   "no-sound":"5 秒內沒收到聲音，已自動取消，並換成下一種麥克風模式。請再按一次麥克風試試。",
   "no-start":"麥克風沒有啟動。請關掉正在用麥克風的 App（通話、錄音、Siri），再按一次麥克風；還是不行就關掉這個 Safari 分頁重開。"
@@ -460,6 +461,28 @@ function srLogText(){
 }
 function runDiag(kind,log){
   function w(s){log.textContent+=s+"\n";}
+  if(kind==="level"){
+    // 直接讀麥克風音量：分辨是「麥克風本身沒聲音」還是「語音辨識沒反應」
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){w("✗ 這個瀏覽器不能直接使用麥克風");return;}
+    killListen();hush();recUsed=true;
+    w("請在 5 秒內大聲說：one, two, three, four, five");
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){
+      var tr=st.getAudioTracks()[0];w("麥克風："+(tr&&tr.label?tr.label:"（系統沒有提供名稱）")+(tr&&tr.muted?"（被系統靜音）":""));
+      var AC=window.AudioContext||window.webkitAudioContext,ac=new AC(),src=ac.createMediaStreamSource(st),an=ac.createAnalyser();
+      an.fftSize=1024;src.connect(an);if(ac.resume)ac.resume();
+      var buf=new Float32Array(an.fftSize),peak=0,t0=Date.now(),line=log.textContent;
+      (function tick(){
+        an.getFloatTimeDomainData(buf);var m=0;for(var i=0;i<buf.length;i++){var v=Math.abs(buf[i]);if(v>m)m=v;}
+        if(m>peak)peak=m;var lv=Math.min(20,Math.round(m*60));
+        log.textContent=line+"音量 "+"█".repeat(lv)+"░".repeat(20-lv)+"\n";
+        if(Date.now()-t0<5000)return requestAnimationFrame(tick);
+        st.getTracks().forEach(function(t){t.stop();});try{ac.close();}catch(e){}
+        var pct=Math.round(peak*100);
+        log.textContent=line+"最大音量："+pct+"%\n"+(pct>=8?"✓ 麥克風有收到聲音。如果語音辨識還是沒反應，問題在 iPhone 的語音辨識服務。":pct>=2?"△ 聲音很小，可能收音是從藍牙耳機或其他裝置的麥克風。":"✗ 麥克風幾乎沒有聲音：可能連著藍牙耳機／車用藍牙，或麥克風被其他 App 占用。")+"\n";
+      })();
+    }).catch(function(e){w("✗ 無法開啟麥克風："+(e&&e.name||e));});
+    return;
+  }
   if(kind==="tts"){
     if(!synth){w("✗ 這個瀏覽器沒有朗讀功能");return;}
     loadVoices();w("美式英文聲音數量："+voices.length+(voices.length?"（"+voices.slice(0,3).map(function(v){return v.name;}).join("、")+"…）":""));
@@ -1048,7 +1071,7 @@ function renderSettings(){
   h+='<div class="field"><textarea id="bk" aria-label="備份碼">'+esc(JSON.stringify({v:2,name:S.name,done:S.done,mist:S.mist||{},wlog:S.wlog||{}}))+'</textarea></div>';
   h+='<div class="row" style="margin-bottom:24px"><button class="pill" id="copy">複製備份碼</button><button class="pill" id="restore">用上面的備份碼還原</button></div>';
   h+='<div class="sec-h"><h3>語音診斷</h3></div><p class="tip" style="margin-top:0">麥克風或朗讀不能用時，依序按下面三個按鈕，把結果截圖給我。</p>';
-  h+='<div class="row" style="margin-bottom:10px"><button class="pill" id="dEnv">1. 環境檢查</button><button class="pill" id="dTts">2. 測試朗讀</button><button class="pill" id="dSr">3. 測試辨識</button></div><pre class="diaglog" id="dLog">'+esc(envWarning()||"按上面的按鈕開始檢查")+'</pre>';
+  h+='<div class="row" style="margin-bottom:10px"><button class="pill" id="dEnv">1. 環境檢查</button><button class="pill" id="dTts">2. 測試朗讀</button><button class="pill" id="dSr">3. 測試辨識</button><button class="pill" id="dLv">4. 測試麥克風音量</button></div><pre class="diaglog" id="dLog">'+esc(envWarning()||"按上面的按鈕開始檢查")+'</pre>';
   h+='<div class="field" style="margin-top:14px"><label for="mm">麥克風模式（收不到聲音時會自動切換）</label><select id="mm">'+MIC_MODES.map(function(n,i){return'<option value="'+i+'"'+(micMode()===i?' selected':'')+'>'+n+'</option>';}).join("")+'</select></div>';
   h+='<div class="tip">最近幾次麥克風紀錄（收不到聲音時請截圖給我）</div><pre class="diaglog" id="srLog">'+esc(srLogText())+'</pre>';
   h+='<div class="note"><b>iPhone 必要設定</b><br>1. 用 <b>Safari</b> 開啟網址（不要用 LINE 裡的瀏覽器或 Chrome）<br>2. 設定 → Siri：開啟 Siri<br>3. 設定 → 一般 → 鍵盤：開啟「聽寫」，並在「鍵盤」裡加入「英文（美國）」<br>4. 設定 → Safari → 麥克風：允許<br>5. 側邊靜音開關打開時，朗讀會沒有聲音</div>';
@@ -1064,6 +1087,7 @@ function renderSettings(){
   document.getElementById("dEnv").onclick=function(){dl.textContent="";runDiag("env",dl);};
   document.getElementById("dTts").onclick=function(){dl.textContent="";runDiag("tts",dl);};
   document.getElementById("dSr").onclick=function(){dl.textContent="";runDiag("sr",dl);};
+  document.getElementById("dLv").onclick=function(){dl.textContent="";runDiag("level",dl);};
   document.getElementById("test").onclick=function(){speak("Hi, I'm your speaking partner. Let's practice together!");};
   document.getElementById("copy").onclick=function(){var t=document.getElementById("bk");var ok=function(){toast("已複製備份碼");};if(navigator.clipboard)navigator.clipboard.writeText(t.value).then(ok,function(){t.select();toast("請長按選取後複製");});else{t.select();toast("請長按選取後複製");}};
   document.getElementById("restore").onclick=function(){try{var o=JSON.parse(document.getElementById("bk").value);if(!o.done)throw 0;S.done=o.done;if(o.name)S.name=o.name;if(o.mist)S.mist=o.mist;if(o.wlog)S.wlog=o.wlog;save();toast("已還原 "+Object.keys(S.done).length+" 天的進度");}catch(e){toast("備份碼格式不對，請重新貼上完整內容");}};
