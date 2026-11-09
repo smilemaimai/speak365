@@ -130,6 +130,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .alt .t{font-size:16px;font-weight:600;word-break:break-word}
 .alt .n{font-size:13px;color:var(--muted)}
 .line .alt .t{font-size:14px}
+.linkbtn{background:none;border:0;color:var(--voice);font-size:14.5px;font-weight:600;text-decoration:underline;text-underline-offset:3px;padding:8px 0;cursor:pointer}
+.dict{margin-top:12px}
+.dictbox{display:grid;gap:8px;margin-top:6px}
+.dictbox .r{display:flex;gap:8px}
+.dictbox input,.dictbox textarea{flex:1;min-width:0;min-height:46px;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-size:17px;font-family:inherit;background:var(--surface);color:var(--ink)}
+.dictbox textarea{min-height:110px;resize:vertical}
 .okalt{font-size:13.5px;color:var(--good);font-weight:600}
 
 /* 底部固定列 */
@@ -803,12 +809,42 @@ function renderItem(){
   h+='<div class="lesson-title"><div class="eyebrow">'+(info.d?'Day '+info.d+' · ':'')+esc(info.type.n)+'</div><h2>'+esc(info.week.t)+'</h2>'+(it.k!=="free"?styleSegHTML():'')+'</div>'+envBannerHTML();
   h+='<div class="card" id="card">'+cardHTML(it,st)+'</div>';
   if(it.k!=="free"&&it.k!=="dialog")h+='<p class="tip" style="margin-top:12px">按橘色麥克風開始說，說完會自動停止並評分。綠色是說對的字，紅色是要加強的字，下方會有發音建議。</p>';
+  if(it.k!=="dialog")h+=dictHTML(it.k==="free");
   $app.innerHTML=h;
   document.getElementById("back").onclick=renderHome;
   $app.querySelectorAll("[data-style]").forEach(function(b){b.onclick=function(){if(S.style===b.dataset.style)return;S.style=b.dataset.style;save();renderItem();};});
   bindCard(it,st);
+  bindDict(it,st);
   renderDock(it,st);
   window.scrollTo(0,0);
+}
+// 備用：用 iPhone 鍵盤上的聽寫（麥克風）把說的話轉成文字，再拿來評分
+function dictHTML(long){
+  var open=!!S.dict;
+  var field=long?'<textarea id="dictIn" lang="en" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="點這裡，再按鍵盤上的麥克風說英文"></textarea>':'<input id="dictIn" type="text" lang="en" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="點這裡，再按鍵盤上的麥克風">';
+  return'<div class="dict"><button class="linkbtn" id="dictT">'+(open?"收起鍵盤聽寫":"麥克風不能用？改用鍵盤聽寫")+'</button><div class="dictbox" id="dictBox"'+(open?'':' hidden')+'><div class="tip">鍵盤先切到 <b>English</b>，按鍵盤上的 🎙 說英文，說完按「'+(long?"分析":"評分")+'」。</div><div class="r">'+field+(long?'':'<button class="pill" id="dictGo">評分</button>')+'</div>'+(long?'<div class="row"><button class="pill" id="dictGo">分析</button></div>':'')+'</div></div>';
+}
+function bindDict(it,st){
+  var t=document.getElementById("dictT");if(!t)return;
+  var box=document.getElementById("dictBox"),inp=document.getElementById("dictIn"),go=document.getElementById("dictGo");
+  t.onclick=function(){S.dict=!S.dict;save();box.hidden=!S.dict;t.textContent=S.dict?"收起鍵盤聽寫":"麥克風不能用？改用鍵盤聽寫";if(S.dict)inp.focus();};
+  function submit(){
+    var v=(inp.value||"").trim();
+    if(!v){toast("還沒有內容：點輸入框，按鍵盤上的麥克風說英文");inp.focus();return;}
+    inp.blur();
+    if(it.k==="free"){st.text=v;st.secs=st.secs||Math.round(norm(v).length/2.2);st.analysis=freeAnalyze(v,st.secs,it.hints);renderItem();return;}
+    scoreAlts(it,st,[v]);
+  }
+  go.onclick=submit;
+  if(it.k!=="free")inp.onkeydown=function(e){if(e.key==="Enter"){e.preventDefault();submit();}};
+}
+function scoreAlts(it,st,alts){
+  var A=alts.length?alts:[""],target=targetOf(it),best=bestOf(target,A),other=altOf(it),altHit="";
+  if(other){var b2=bestOf(other,A);if(b2.score>best.score+4){best=b2;target=other;altHit=other===it.c?"c":"b";}}
+  st.tries=(st.tries||0)+1;st.lastScore=best.score;
+  if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;st.heard=best.heard;st.tips=tipsFor(target,best);st.target=target;st.altHit=altHit;}
+  renderItem();
+  if(best.score>=85&&navigator.vibrate)navigator.vibrate(30);
 }
 function marksHTML(marks){return marks.map(function(m){return'<span class="w '+(m.ok?"ok":"miss")+'">'+esc(m.w)+'</span>';}).join(" ");}
 function resultHTML(st){
@@ -949,13 +985,8 @@ function renderDock(it,st){
     var res=document.getElementById("res");
     res.innerHTML='<div class="heard" id="hearing"><span class="muted">麥克風準備中，請稍等…</span> <b id="interim"></b></div>';
     listen(function(t){var el=document.getElementById("interim");if(el)el.textContent=t;},function(){var h=document.getElementById("hearing");if(h&&h.firstChild)h.firstChild.textContent="請開始說 🎙";if(navigator.vibrate)navigator.vibrate(15);}).then(function(alts){
-      if(!alts.length)toast("沒有聽到聲音。按下麥克風後等半秒再開口；若一直這樣，請到設定做語音診斷。");
-      var A=alts.length?alts:[""],target=targetOf(it),best=bestOf(target,A),other=altOf(it),altHit="";
-      if(other){var b2=bestOf(other,A);if(b2.score>best.score+4){best=b2;target=other;altHit=other===it.c?"c":"b";}}
-      st.tries=(st.tries||0)+1;st.lastScore=best.score;
-      if(st.score==null||best.score>=st.score){st.score=best.score;st.marks=best.marks;st.heard=best.heard;st.tips=tipsFor(target,best);st.target=target;st.altHit=altHit;}
-      renderItem();
-      if(best.score>=85&&navigator.vibrate)navigator.vibrate(30);
+      if(!alts.length)toast("沒有聽到聲音。按下麥克風後等半秒再開口；若一直這樣，可以改用下方的「鍵盤聽寫」。");
+      scoreAlts(it,st,alts);
     }).catch(function(err){
       mic.classList.remove("live");mic.innerHTML=IC.mic;
       res.innerHTML="";
